@@ -175,7 +175,10 @@ or Word layout. Broader sanitised fixtures are a sensible next step.
 ## Repository structure
 
 ```text
-ccc-minutes-builder/
+community-minutes-builder/
+├── README.md
+├── LICENSE
+├── .gitignore
 ├── SKILL.md
 ├── references/
 │   ├── house-style.md
@@ -186,6 +189,10 @@ ccc-minutes-builder/
     ├── row_audit.py
     └── swap_slide_images.py
 ```
+
+The skill itself is the repository root: `SKILL.md`, `references/` and
+`scripts/`. When packaging it for an AI workspace, zip those into a folder
+named `ccc-minutes-builder`, matching the `name` field in `SKILL.md`.
 
 ## Privacy
 
