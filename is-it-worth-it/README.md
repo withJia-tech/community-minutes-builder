@@ -1,18 +1,33 @@
-# Is It Worth It? — Calculator 4b, "Drive there, or MRT?"
+# Is It Worth It? — Calculator 4b, "Drive There or MRT?"
 
 A per-trip cost comparison for Singapore car owners deciding how to get to one
 specific place: drive, take the MRT, or book a Grab. Not a commute tool and
 not a monthly budget — the user is at the door, deciding now.
 
-The point of the thing is parking. A three-hour hospital visit can cost more
+The point of the thing is parking. Three hours at a public hospital costs more
 in parking than the entire petrol bill for the round trip, and almost nobody
 checks before leaving.
 
-> **This directory is in the wrong repository.** It was built on a branch of
-> `community-minutes-builder` because that is where the build session was
-> scoped. It belongs in its own `is-it-worth-it` repository and is written to
-> move there unchanged — nothing outside this directory was touched, and no
-> path reaches above it. See "Moving this out" below.
+> **This directory is not yet in its own repository.** Creating
+> `withJia-tech/is-it-worth-it` failed — the GitHub App this session
+> authenticates as cannot create repositories (`403 Resource not accessible by
+> integration`). The repository has to be created by hand, once, in the
+> browser. Everything here is written to move across unchanged: no path
+> reaches above this directory, and the Pages workflow is parked as
+> `deploy.workflow.yml` so it stays inert until it is somewhere it should run.
+> See "Moving this out".
+
+## No agent, deliberately
+
+There is no LLM call, no pipeline, no agent anywhere in this build, and there
+should not be. The whole calculator is ten arithmetic rules over numbers the
+user types. Learning a user's driving habits — the "agentic" tier in the
+handoff — would be a large amount of machinery to answer a question that
+`parkRate × parkHours` already answers exactly.
+
+The honest verdict for a decision this small is that the deterministic layer
+*is* the product, and the useful upgrade path is better data (real HDB and URA
+carpark rates), not more inference.
 
 ## Running it
 
@@ -22,19 +37,18 @@ violation and the page renders inert. Serve the directory:
 ```bash
 cd is-it-worth-it
 python3 -m http.server 8099
-# http://127.0.0.1:8099/calculators/drive-or-mrt/index.html
+# http://127.0.0.1:8099/
 ```
 
 ## Tests
 
 ```bash
-node --test        # 40 tests, no dependencies, no install
+node --test        # 44 tests, no dependencies, no install
 ```
 
-Two suites. `test/calc.test.js` covers rules D1–D10 — the deterministic layer,
-where a wrong answer is a defect rather than a disagreement.
-`test/data-drift.test.js` guards the assumption files against their inline
-mirror and fails if they diverge.
+`test/calc.test.js` covers rules D1–D10, the layer where a wrong answer is a
+defect rather than a disagreement. `test/data-drift.test.js` guards the
+assumption files against their inline mirror and fails if they diverge.
 
 There are deliberately no tests on the heuristics. You cannot unit-test a
 guess. They are labelled in the UI instead, which is the honest alternative.
@@ -43,6 +57,7 @@ guess. They are labelled in the UI instead, which is the honest alternative.
 
 ```
 is-it-worth-it/
+├── index.html              # root — redirects to the one live calculator
 ├── calculators/drive-or-mrt/
 │   ├── index.html          # the calculator: markup, styles, wiring
 │   ├── calc.js             # D1-D10, pure functions, no DOM
@@ -53,7 +68,7 @@ is-it-worth-it/
 ├── shared/tokens.css       # design tokens, values only
 ├── docs/DECISIONS.md       # answers to the architect's open questions
 ├── test/
-└── deploy.workflow.yml     # ready for .github/workflows/ once extracted
+└── deploy.workflow.yml     # → .github/workflows/deploy.yml once extracted
 ```
 
 ## Where the judgment sits
@@ -75,16 +90,13 @@ product exists to surface from a guess into a fact.
 
 ## Moving this out
 
-```bash
-# from the repository root, once is-it-worth-it exists on GitHub
-git mv is-it-worth-it/deploy.workflow.yml is-it-worth-it/.github/workflows/deploy.yml
-# then move the directory contents to the new repository root
-```
+1. Create an empty public repository `withJia-tech/is-it-worth-it` (no README,
+   no `.gitignore` — this directory supplies both).
+2. Copy the contents of this directory to the new repository root.
+3. `mkdir -p .github/workflows && git mv deploy.workflow.yml .github/workflows/deploy.yml`
+4. Repository settings → Pages → Source: **GitHub Actions**.
 
-No file in here refers to anything above this directory, so the move is a copy
-and a commit. The workflow is parked as `deploy.workflow.yml` rather than
-under `.github/workflows/` on purpose — dropping a Pages deploy into the
-minutes-builder repository would try to publish the wrong project.
+The workflow runs `node --test` and only deploys if it passes.
 
 ## Status
 

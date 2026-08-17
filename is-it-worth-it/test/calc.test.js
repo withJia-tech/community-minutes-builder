@@ -160,11 +160,20 @@ describe('D9 — verdict bands', () => {
 });
 
 describe('journey times', () => {
-  test('each mode uses its own assumed speed', () => {
+  test('each mode uses its own assumed speed, over the return journey', () => {
     const times = journeyTimes(TRIP, FARE_DEFAULTS.speeds);
-    assert.equal(round2(times.drive), 22); // 12/40*60 + 4
-    assert.equal(round2(times.mrt), 38.8); // 12/25*60 + 10
-    assert.equal(round2(times.grab), 18); // 12/40*60, no parking buffer
+    assert.equal(round2(times.drive), 40); // 12/40*60*2 + 4 parking
+    assert.equal(round2(times.mrt), 77.6); // 12/25*60*2 + 10*2 walking
+    assert.equal(round2(times.grab), 42); // 12/40*60*2 + 6 waiting
+  });
+
+  test('times are return figures, matching the costs', () => {
+    // Every cost in this calculator is a return figure. A one-way time
+    // printed beside a return cost invites exactly the wrong comparison.
+    const single = journeyTimes({ distance: 10, walkTime: 0 }, FARE_DEFAULTS.speeds);
+    const double = journeyTimes({ distance: 20, walkTime: 0 }, FARE_DEFAULTS.speeds);
+    const buffer = FARE_DEFAULTS.speeds.driveBufferMin;
+    assert.equal(double.drive - buffer, (single.drive - buffer) * 2);
   });
 });
 
@@ -177,6 +186,7 @@ describe('computeAll — the whole layer', () => {
     assert.equal(r.mrt, 3.6);
     assert.equal(r.grab, 20.2);
     assert.equal(r.walk, 8.33);
+    assert.equal(r.mrtWithWalk, 11.93); // 3.60 fare + 8.33 walk, shown separately
     assert.equal(r.winner, 'mrt');
     assert.equal(r.parkingShare, 0.5);
     assert.equal(r.band, 'mrt-wins');
@@ -225,28 +235,45 @@ describe('computeAll — the whole layer', () => {
 });
 
 describe('D10 — share string', () => {
-  const build = (overrides = {}) => {
+  const build = (overrides = {}, destinationLabel = 'public hospital') => {
     const input = { ...TRIP, ...overrides };
     const result = computeAll(input, FARE_DEFAULTS);
     return shareString({
       input,
       result,
-      destinationLabel: 'Hospital or clinic',
-      verdict: 'Verdict: take the train.',
+      destinationLabel,
+      verdict: 'MRT saves $8.40 vs driving. Door-to-door — your call.',
       assumptionsVersion: FARE_DEFAULTS.assumptionsVersion,
     });
   };
 
   test('carries all three totals', () => {
     const s = build();
-    assert.match(s, /Drive: \$12\.00/);
-    assert.match(s, /MRT: \$3\.60/);
-    assert.match(s, /Grab: \$20\.20/);
+    assert.match(s, /🚗 Drive: \$12\.00/);
+    assert.match(s, /🚇 MRT: \$3\.60/);
+    assert.match(s, /🚕 Grab: \$20\.20/);
+  });
+
+  test('itemises what makes the drive total', () => {
+    assert.match(build(), /\(petrol \$6\.00 \+ parking \$6\.00\)/);
+  });
+
+  test('includes ERP only when there is any', () => {
+    assert.doesNotMatch(build(), /ERP/);
+    assert.match(build({ erp: 3 }), /\+ ERP \$3\.00\)/);
   });
 
   test('labels an estimated Grab fare', () => {
-    assert.match(build({ grabFare: null }), /Grab: \$20\.20 \(estimated\)/);
-    assert.doesNotMatch(build({ grabFare: 14 }), /\(estimated\)/);
+    assert.match(build({ grabFare: null }), /🚕 Grab: \$20\.20 \(est\)/);
+    assert.doesNotMatch(build({ grabFare: 14 }), /\(est\)/);
+  });
+
+  test('names the destination when there is one', () => {
+    assert.match(build(), /public hospital \(3h parking\):/);
+  });
+
+  test('falls back to the distance when no destination was picked', () => {
+    assert.match(build({}, null), /12km trip \(3h parking\):/);
   });
 
   test('stamps the assumptions version so a stale share is readable', () => {
@@ -263,10 +290,5 @@ describe('D10 — share string', () => {
     const s = build();
     assert.doesNotMatch(s, /\t/);
     assert.doesNotMatch(s, / {2,}/);
-  });
-
-  test('pluralises hours correctly', () => {
-    assert.match(build({ parkHours: 1 }), /1 hr parked/);
-    assert.match(build({ parkHours: 3 }), /3 hrs parked/);
   });
 });

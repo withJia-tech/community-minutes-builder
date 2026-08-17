@@ -150,13 +150,71 @@ incomplete without nagging.
 
 ---
 
+---
+
+## Revision: design port, and the agentic question closed
+
+**The visual design is Mizuno's, ported from her artifact.** The first build
+used an editorial serif treatment; it was replaced wholesale by the maximalist
+neo-brutalist design — Bricolage Grotesque, coral and cobalt, hard offset
+shadows, emoji-led option cards. The engineering underneath is unchanged: the
+same `calc.js`, the same `data/*.json`, the same tests. That is the point of
+having the split — a total visual rewrite touched no arithmetic and broke no
+test.
+
+Three things changed in the model as a result, all adopted from the artifact:
+
+- **Destination categories.** Six categories now map H1's five rates properly:
+  HDB, heartland mall, CBD/Orchard, public hospital, private hospital, and
+  "Other" which auto-fills nothing. Public and private hospitals are split,
+  which matters — $3.00 against $5.50 is the difference between a $9 and a
+  $16.50 visit, and the product exists to surface exactly that.
+- **Journey times are return figures.** Every cost in the calculator is a
+  return figure, so a one-way time printed beside a return cost invited the
+  wrong comparison. There is now a test asserting the doubling holds.
+- **A "if you price the walk" line.** Shown as a soft secondary row. H8 still
+  holds: the MRT headline is fare-only, and a test asserts it.
+
+**Agentic capability: none, and none warranted.** Tier 2 in the handoff —
+learning driving habits, adaptive defaults from history — is not built and is
+not recommended. Assessed against the eight-factor lens, this problem is not
+orchestration-driven or credulity-driven; it is a ten-rule arithmetic problem
+over numbers the user types in. The rung on the ladder is *deterministic
+code*, and the rung above (single agent + tools) buys nothing, because there
+is no judgment to delegate: `parkRate × parkHours` is not an inference. The
+one real accuracy gap is data, and data is a CSV.
+
+Recorded here because "no agent needed" is a finding, not an omission.
+
+## Things kept from the original build
+
+Two additions to the artifact, both small, both removable if unwanted:
+
+- **An "estimates only" disclaimer** in the colophon. The artifact did not
+  carry one. The tool prices hospital trips, and section 9.2 lists it as a
+  production requirement, so it ships.
+- **An assumptions disclosure** in the results, collapsed by default, listing
+  every heuristic and its logic ID. This is the mechanism that makes
+  "assumptions in the open" true rather than merely claimed.
+
+Two corrections to the artifact's own code, both a11y:
+
+- Card headers were `<div>` with a click handler — not reachable by keyboard.
+  They are `<button>` now.
+- Collapsed cards used `max-height: 0` alone, which hides content visually but
+  leaves every field inside it in the tab order, so keyboard focus vanished
+  into a closed panel. Adding `visibility: hidden` fixes it.
+
+The footer's prev/next links pointed at `#`. They are now marked "soon"
+rather than rendering as working links to calculators that do not exist.
+
 ## Verification
 
-- `node --test` — 40 unit tests, all passing.
-- 40 browser assertions against the acceptance criteria in section 7, driven
-  through Chromium at 360px. 39 pass; the one failure is `fonts.googleapis.com`
-  being blocked by this build sandbox, confirmed by request-level logging and
-  not a property of the page.
+- `node --test` — 44 unit tests, all passing.
+- 48 browser assertions against the acceptance criteria in section 7, driven
+  through Chromium at 360px. All pass. Google Fonts is blocked by this build
+  sandbox and is filtered by request URL rather than by console text, so a
+  genuine failed request would still fail the run.
 - Fallback path exercised by removing `data/` and reloading: identical totals,
   and the colophon reports it is running on built-in assumptions.
 

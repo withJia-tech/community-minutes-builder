@@ -112,15 +112,21 @@ export function verdictBand({ drive, mrt }, threshold) {
 /* -------------------------------------------------------------------- time */
 
 /**
- * Journey time estimates in minutes. Assumed average speeds, no live data.
- * Grab uses the drive speed without the parking buffer.
+ * Journey time estimates in minutes, for the whole return journey.
+ *
+ * Return rather than one-way, deliberately: every cost in this calculator is
+ * a return figure, so a one-way time sitting beside a return cost invites
+ * exactly the wrong comparison.
+ *
+ * Assumed average speeds, no live data. The two buffers are different things
+ * — the drive buffer is time spent finding a space, the Grab buffer is time
+ * spent waiting for the car to turn up.
  */
 export function journeyTimes({ distance, walkTime }, speeds) {
-  const driving = (distance / speeds.driveKmh) * 60;
   return {
-    drive: driving + speeds.driveBufferMin,
-    mrt: (distance / speeds.mrtKmh) * 60 + walkTime,
-    grab: (distance / speeds.grabKmh) * 60,
+    drive: (distance / speeds.driveKmh) * 60 * 2 + speeds.driveBufferMin,
+    mrt: (distance / speeds.mrtKmh) * 60 * 2 + walkTime * 2,
+    grab: (distance / speeds.grabKmh) * 60 * 2 + speeds.grabBufferMin,
   };
 }
 
@@ -153,6 +159,9 @@ export function computeAll(input, assumptions) {
     mrt: round2(mrt),
     grab: round2(grab),
     walk: round2(walk),
+    /* Shown as a secondary line so the user can see what pricing their own
+       walking time would do, without it ever entering the headline (H8). */
+    mrtWithWalk: round2(mrt + walk),
     grabFareOneWay: round2(grabFare),
     grabEstimated,
     winner: selectWinner({ drive, mrt, grab }),
@@ -178,20 +187,27 @@ const money = (n) => `$${n.toFixed(2)}`;
  * read honestly after the petrol default moves.
  */
 export function shareString({ input, result, destinationLabel, verdict, assumptionsVersion }) {
+  const trip = destinationLabel
+    ? `${destinationLabel} (${input.parkHours}h parking)`
+    : `${input.distance}km trip (${input.parkHours}h parking)`;
+
+  const driveParts = [
+    `petrol ${money(result.petrol)}`,
+    `parking ${money(result.parking)}`,
+    result.erp > 0 ? `ERP ${money(result.erp)}` : null,
+  ].filter(Boolean).join(' + ');
+
   const lines = [
-    'Drive there, or MRT?',
+    'Drive There or MRT? 🚗🚇',
     '',
-    `Trip: ${input.distance} km each way, ${input.parkHours} hr${input.parkHours === 1 ? '' : 's'} parked${destinationLabel ? ` at ${destinationLabel.toLowerCase()}` : ''}`,
-    '',
-    `Drive: ${money(result.drive)}`,
-    `MRT: ${money(result.mrt)}`,
-    `Grab: ${money(result.grab)}${result.grabEstimated ? ' (estimated)' : ''}`,
-    '',
-    `Parking alone is ${money(result.parking)} of that drive — ${Math.round(result.parkingShare * 100)}% of the total.`,
+    `${trip}:`,
+    `🚗 Drive: ${money(result.drive)} (${driveParts})`,
+    `🚇 MRT: ${money(result.mrt)}`,
+    `🚕 Grab: ${money(result.grab)}${result.grabEstimated ? ' (est)' : ''}`,
     '',
     verdict,
     '',
-    `Worked out with "Is It Worth It?" — estimates only, assumptions ${assumptionsVersion}`,
+    `via Is It Worth It? — estimates only, assumptions ${assumptionsVersion}`,
   ];
   return lines.join('\n');
 }

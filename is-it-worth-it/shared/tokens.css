@@ -8,75 +8,53 @@
  */
 
 :root {
-  /* The page commits to a light editorial look. Declaring the scheme stops
-     browsers and mobile clients auto-inverting it into something unreadable. */
+  /* The suite commits to one warm light look. Declaring the scheme stops
+     browsers and in-app webviews auto-inverting it into something else. */
   color-scheme: light;
 
-  /* ---- ink and paper -------------------------------------------------- */
-  --paper: #fbf9f5;
-  --paper-raised: #ffffff;
-  --paper-sunken: #f3f0e9;
-  --ink: #17161a;
-  --ink-muted: #57544f;
-  --ink-faint: #83807a;
-  --rule: #e3ded3;
-  --rule-strong: #cdc6b8;
+  /* BASE — warm bone, not cream, not green */
+  --bone: #FFF3E4;
+  --bone-deep: #FFE4C7;
+  --card: #FFFFFF;
 
-  /* ---- accent --------------------------------------------------------- */
-  --accent: #b4531f;
-  --accent-soft: #f6e6da;
-  --accent-ink: #7d3813;
+  /* INK — near-black plum */
+  --ink: #1C1015;
+  --ink-soft: #5A4249;
+  --ink-faint: #9B8288;
 
-  /* ---- semantic ------------------------------------------------------- */
-  --win: #1f5136;
-  --win-soft: #e2ede5;
-  --warn: #8a6410;
+  /* PRIMARY — electric coral */
+  --coral: #FF4A26;
+  --coral-deep: #D32E0E;
+  --coral-pale: #FFD9CE;
 
-  /* ---- type ----------------------------------------------------------- */
-  --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
-  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  /* ACCENTS — contemporary maximalist */
+  --tangerine: #FFA318;
+  --tangerine-pale: #FFE9C2;
+  --pink: #FF2E7E;
+  --pink-pale: #FFD6E6;
+  --cobalt: #2B4EFF;
+  --cobalt-deep: #1631C4;
+  --cobalt-pale: #D5DCFF;
+  --lilac: #C6B5FF;
 
-  --step--1: clamp(0.78rem, 0.76rem + 0.1vw, 0.84rem);
-  --step-0: clamp(0.95rem, 0.92rem + 0.15vw, 1.02rem);
-  --step-1: clamp(1.12rem, 1.05rem + 0.35vw, 1.3rem);
-  --step-2: clamp(1.4rem, 1.25rem + 0.7vw, 1.85rem);
-  --step-3: clamp(1.9rem, 1.55rem + 1.6vw, 2.9rem);
-  --step-4: clamp(2.4rem, 1.8rem + 2.8vw, 4rem);
+  --border: #1C1015;
+  --border-soft: #E8D5C4;
 
-  /* ---- space ---------------------------------------------------------- */
-  --sp-1: 0.25rem;
-  --sp-2: 0.5rem;
-  --sp-3: 0.75rem;
-  --sp-4: 1rem;
-  --sp-5: 1.5rem;
-  --sp-6: 2rem;
-  --sp-7: 3rem;
-  --sp-8: 4rem;
+  /* Hard offset shadows — the load-bearing gesture of the whole system */
+  --hard: 3px 3px 0 var(--ink);
+  --hard-lg: 5px 5px 0 var(--ink);
+  --hard-coral: 3px 3px 0 var(--coral);
+  --hard-cobalt: 5px 5px 0 var(--cobalt-deep);
 
-  /* ---- form ----------------------------------------------------------- */
-  --radius-pill: 999px;
-  --radius-card: 14px;
-  --radius-field: 10px;
-  --shadow-card: 0 1px 2px rgba(23, 22, 26, 0.04), 0 8px 24px rgba(23, 22, 26, 0.05);
-  --shadow-sticky: 0 -6px 24px rgba(23, 22, 26, 0.08);
+  /* Type */
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
 
-  /* ---- motion --------------------------------------------------------- */
-  --ease: cubic-bezier(0.2, 0, 0.1, 1);
-  --dur-fast: 120ms;
-  --dur: 220ms;
-  --dur-slow: 380ms;
+  /* Form */
+  --radius-pill: 100px;
+  --radius-card: 18px;
+  --radius-panel: 16px;
 
-  --measure: 34rem;
-  --shell: 44rem;
-}
-
-/* Honour the OS setting rather than animating regardless. Set to 0.01ms not 0
-   so transitionend still fires and any JS waiting on it does not hang. */
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --dur-fast: 0.01ms;
-    --dur: 0.01ms;
-    --dur-slow: 0.01ms;
-  }
+  --shell: 440px;
 }

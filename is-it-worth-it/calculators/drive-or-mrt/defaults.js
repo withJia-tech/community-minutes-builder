@@ -20,7 +20,7 @@
  *
  * WHY THIS DOES NOT ROT
  * A mirror maintained by hand is a drift bug waiting to happen. It does not
- * drift here because test/data-drift.test.mjs asserts these objects are deeply
+ * drift here because test/data-drift.test.js asserts these objects are deeply
  * equal to the JSON files and fails the moment they diverge. Edit the JSON,
  * run the tests, and the test tells you to update this file.
  */
@@ -34,11 +34,15 @@ export const FARE_DEFAULTS = {
     petrolPrice: 3.0,
     fuelEconomy: 12,
     erp: 0,
+    petrolNote: 'Sinopec with card ~$2.66 · Shell full price ~$3.46',
+    fuelNote: 'A typical Singapore sedan does about 12.',
   },
   alternatives: {
     mrtFare: 1.8,
     walkTime: 10,
     hourlyRate: 25,
+    fareNote: 'Cross-island averages around $1.80.',
+    hourlyNote: '$4,000 a month is roughly $25/hr (MoneySense).',
   },
   grabEstimate: {
     logicId: 'H2',
@@ -52,10 +56,12 @@ export const FARE_DEFAULTS = {
     driveBufferMin: 4,
     mrtKmh: 25,
     grabKmh: 40,
+    grabBufferMin: 6,
+    returnJourney: true,
     caveat:
       'H3 and H4. No traffic model, no transfer or platform-wait model. The MRT figure is the most under-modelled number in the build.',
-    grabDerivation:
-      'Grab uses the drive speed without the parking buffer, since nobody hunts for a space in a Grab.',
+    note:
+      'Times are for the whole return journey, matching the costs, which are all return figures too. The drive buffer is time spent finding a space; the Grab buffer is time spent waiting for the car.',
   },
   verdict: {
     logicId: 'D9',
@@ -72,7 +78,7 @@ export const FARE_DEFAULTS = {
 };
 
 export const PARKING_DEFAULTS = {
-  version: '1.0.0',
+  version: '1.1.0',
   lastReviewed: '2026-08-17',
   logicId: 'H1',
   status: 'heuristic',
@@ -83,43 +89,43 @@ export const PARKING_DEFAULTS = {
   destinations: [
     {
       id: 'hdb',
-      label: 'HDB estate',
-      hint: 'Void deck or multi-storey carpark',
+      label: 'HDB carpark',
+      shortLabel: 'HDB carpark',
       rate: 0.6,
       source: 'Typical HDB short-term rate',
     },
     {
-      id: 'hospital',
-      label: 'Hospital or clinic',
-      hint: 'Public hospital visitor carpark',
+      id: 'heartland',
+      label: 'Heartland mall — Tampines, JEM',
+      shortLabel: 'heartland mall',
       rate: 2.0,
-      source: 'Typical restructured-hospital visitor rate',
+      source: 'Typical heartland mall rate',
     },
     {
       id: 'cbd',
-      label: 'CBD or Orchard',
-      hint: 'Town-centre commercial carpark',
+      label: 'CBD or Orchard — ION, Raffles City',
+      shortLabel: 'CBD or Orchard mall',
       rate: 5.0,
       source: 'Typical central-area weekday rate',
     },
     {
-      id: 'suburban-mall',
-      label: 'Suburban mall',
-      hint: 'Heartland shopping centre',
+      id: 'public-hosp',
+      label: 'Public hospital — SGH, NUH, TTSH',
+      shortLabel: 'public hospital',
       rate: 3.0,
-      source: 'Typical suburban mall rate',
+      source: 'Typical restructured-hospital visitor rate',
     },
     {
-      id: 'hotel-venue',
-      label: 'Hotel or event venue',
-      hint: 'Weddings, banquets, conferences',
+      id: 'private-hosp',
+      label: 'Private hospital — Mt E, Gleneagles',
+      shortLabel: 'private hospital',
       rate: 5.5,
-      source: 'Typical hotel visitor rate',
+      source: 'Typical private-hospital visitor rate',
     },
     {
       id: 'other',
-      label: 'Somewhere else',
-      hint: 'You already know the rate',
+      label: 'Other',
+      shortLabel: 'this destination',
       rate: null,
       source: 'Your own figure',
     },

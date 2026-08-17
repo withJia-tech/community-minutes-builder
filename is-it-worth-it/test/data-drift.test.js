@@ -49,6 +49,10 @@ describe('the assumption files stay usable', () => {
     for (const d of destinations) {
       assert.ok(d.id, 'destination needs an id');
       assert.ok(d.label, `${d.id} needs a label`);
+      // shortLabel is what the verdict copy reads mid-sentence ("parking at a
+      // heartland mall is the killer"), so the long dropdown label with its
+      // example carparks cannot be reused there.
+      assert.ok(d.shortLabel, `${d.id} needs a shortLabel for the verdict copy`);
       assert.ok(d.source, `${d.id} needs a stated source — the UI shows it to the user`);
       assert.ok(
         d.rate === null || (typeof d.rate === 'number' && d.rate >= 0),
