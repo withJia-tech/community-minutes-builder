@@ -1,0 +1,58 @@
+# GitHub Pages deploy for the "Is It Worth It?" suite.
+#
+# PARKED ON PURPOSE. This file is not under .github/workflows/ because this
+# directory currently lives inside the community-minutes-builder repository,
+# and an active Pages workflow here would try to publish the wrong project.
+#
+# When this directory becomes its own repository, move it:
+#     mkdir -p .github/workflows
+#     git mv deploy.workflow.yml .github/workflows/deploy.yml
+#
+# Then enable Pages with "Source: GitHub Actions" in repository settings.
+#
+# There is no build step. The job runs the tests and uploads the directory as
+# it stands. Tests gate the deploy because the deterministic layer is exactly
+# the kind of thing that should never reach production wrong.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it midway.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # No `npm ci` — there are no dependencies to install.
+      - run: node --test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,82 @@
+/**
+ * Is It Worth It? — design tokens
+ * Single source of truth for the suite. Phase 1 extracts tokens only;
+ * component CSS stays inside each calculator until there are six to compare.
+ *
+ * Rule for this file: it declares values, never selectors beyond :root.
+ * The moment it styles a component it stops being a token file.
+ */
+
+:root {
+  /* The page commits to a light editorial look. Declaring the scheme stops
+     browsers and mobile clients auto-inverting it into something unreadable. */
+  color-scheme: light;
+
+  /* ---- ink and paper -------------------------------------------------- */
+  --paper: #fbf9f5;
+  --paper-raised: #ffffff;
+  --paper-sunken: #f3f0e9;
+  --ink: #17161a;
+  --ink-muted: #57544f;
+  --ink-faint: #83807a;
+  --rule: #e3ded3;
+  --rule-strong: #cdc6b8;
+
+  /* ---- accent --------------------------------------------------------- */
+  --accent: #b4531f;
+  --accent-soft: #f6e6da;
+  --accent-ink: #7d3813;
+
+  /* ---- semantic ------------------------------------------------------- */
+  --win: #1f5136;
+  --win-soft: #e2ede5;
+  --warn: #8a6410;
+
+  /* ---- type ----------------------------------------------------------- */
+  --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --step--1: clamp(0.78rem, 0.76rem + 0.1vw, 0.84rem);
+  --step-0: clamp(0.95rem, 0.92rem + 0.15vw, 1.02rem);
+  --step-1: clamp(1.12rem, 1.05rem + 0.35vw, 1.3rem);
+  --step-2: clamp(1.4rem, 1.25rem + 0.7vw, 1.85rem);
+  --step-3: clamp(1.9rem, 1.55rem + 1.6vw, 2.9rem);
+  --step-4: clamp(2.4rem, 1.8rem + 2.8vw, 4rem);
+
+  /* ---- space ---------------------------------------------------------- */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-7: 3rem;
+  --sp-8: 4rem;
+
+  /* ---- form ----------------------------------------------------------- */
+  --radius-pill: 999px;
+  --radius-card: 14px;
+  --radius-field: 10px;
+  --shadow-card: 0 1px 2px rgba(23, 22, 26, 0.04), 0 8px 24px rgba(23, 22, 26, 0.05);
+  --shadow-sticky: 0 -6px 24px rgba(23, 22, 26, 0.08);
+
+  /* ---- motion --------------------------------------------------------- */
+  --ease: cubic-bezier(0.2, 0, 0.1, 1);
+  --dur-fast: 120ms;
+  --dur: 220ms;
+  --dur-slow: 380ms;
+
+  --measure: 34rem;
+  --shell: 44rem;
+}
+
+/* Honour the OS setting rather than animating regardless. Set to 0.01ms not 0
+   so transitionend still fires and any JS waiting on it does not hang. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0.01ms;
+    --dur: 0.01ms;
+    --dur-slow: 0.01ms;
+  }
+}
