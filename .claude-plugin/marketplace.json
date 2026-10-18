@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "community-minutes-builder",
+  "description": "Skills for drafting and auditing grassroots committee minutes from source records.",
+  "owner": {
+    "name": "withJia-tech"
+  },
+  "plugins": [
+    {
+      "name": "ccc-minutes-builder",
+      "source": "./plugins/ccc-minutes-builder",
+      "description": "Build or audit signature-ready CCC and grassroots committee minutes in Word, with attendance, source and placeholder gates.",
+      "category": "productivity",
+      "keywords": ["minutes", "meeting-minutes", "ccc", "grassroots", "secretariat", "docx", "attendance", "audit"]
+    }
+  ]
+}

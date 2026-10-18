@@ -1,0 +1,11 @@
+{
+  "Present": [
+    {"name": "Alice Lim", "title": "Mdm"},
+    {"name": "Benjamin Tan", "title": "Mr"},
+    {"name": "Chloe Ng", "title": "Ms"}
+  ],
+  "Absent with Apologies": [
+    {"name": "David Ong", "title": "Mr"}
+  ],
+  "In Attendance": []
+}

@@ -194,6 +194,13 @@ extract-text final.docx | grep -c "TBC"    # must be 0
 Nothing bracketed reaches the Chairman for signature. Flags belong in the
 chat and in the reconciliation list, never in the document that gets signed.
 
+When this skill is installed as a Claude Code plugin, a hook enforces this
+step: after each shell command, `scripts/check_final_docx.py` checks every
+`final*.docx` in the working folder and blocks while one still carries a
+placeholder or bracketed note. Drafts are not checked. If the hook blocks,
+resolve the item with the drafter or keep the document as a draft; never
+strip a marker just to get past it.
+
 Run the final linter against the whole DOCX package, including the attendance
 table, body, headers and footers. When a reusable committee profile is
 available, pass it with `--profile` so forbidden spellings and title/name pairs

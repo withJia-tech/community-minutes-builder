@@ -20,6 +20,29 @@ MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
           'August', 'September', 'October', 'November', 'December']
 PLACEHOLDERS = [r'\[TBC\]', r'\[time\]', r'\[name[^\]]*\]', r'\[n\]',
                 r'\[to complete\]', r'\[TO BE COMPLETED[^\]]*\]', r'\bTBD\b']
+# A bracketed editorial note has four or more characters inside the brackets,
+# so a short citation such as [1] is not one. The placeholders above are
+# exempt here because they are already reported as placeholders.
+EDITORIAL_NOTE = r'\[[^\]]{4,}\]'
+NOTE_EXEMPT = r'\[(TBC|time|n)\]'
+
+
+def unresolved_markers(text):
+    """Return each placeholder or bracketed editorial note in text, in order.
+
+    These are the markers main() reports, gathered in one place so that other
+    gates (row_audit.py, the final-document hook) apply exactly the same rule.
+    A match that sits inside a longer match is reported once, as the longer.
+    """
+    spans = set()
+    for pat in PLACEHOLDERS:
+        spans.update(m.span() for m in re.finditer(pat, text, re.I))
+    for m in re.finditer(EDITORIAL_NOTE, text):
+        if not re.match(NOTE_EXEMPT, m.group(0), re.I):
+            spans.add(m.span())
+    outer = [s for s in spans
+             if not any(o != s and o[0] <= s[0] and s[1] <= o[1] for o in spans)]
+    return [text[a:b] for a, b in sorted(outer)]
 
 
 def load(path):
@@ -115,8 +138,8 @@ def main():
             (errors if a.final else warnings).append(msg)
 
     # bracketed editorial notes
-    for m in re.finditer(r'\[[^\]]{4,}\]', full):
-        if not re.match(r'\[(TBC|time|n)\]', m.group(0), re.I):
+    for m in re.finditer(EDITORIAL_NOTE, full):
+        if not re.match(NOTE_EXEMPT, m.group(0), re.I):
             msg = 'document carries a possible editorial note: %s' % m.group(0)[:70]
             (errors if a.final else notes).append(msg)
 
@@ -126,7 +149,9 @@ def main():
         errors.append('profile term_replacements must be an object')
         replacements = {}
     for wrong, right in replacements.items():
-        if wrong and re.search(re.escape(wrong), full, re.I):
+        # whole-term match, the same boundary as the alias check below, so a
+        # rule for "NEA" does not fire on "near"
+        if wrong and re.search(r'(?<!\w)%s(?!\w)' % re.escape(wrong), full, re.I):
             msg = 'unapproved term or spelling %r; approved form is %r' % (wrong, right)
             (errors if a.final else warnings).append(msg)
 
