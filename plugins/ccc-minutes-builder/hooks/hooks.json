@@ -1,0 +1,16 @@
+{
+  "description": "Block final*.docx minutes that still carry [TBC] or other unresolved markers.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/skills/ccc-minutes-builder/scripts/check_final_docx.py"
+          }
+        ]
+      }
+    ]
+  }
+}

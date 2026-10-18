@@ -1,5 +1,8 @@
 """Packaging checks. Pure Python, so they run without the claude CLI."""
+import json
+import os
 import re
+import shlex
 
 from helpers import REPO, SKILL
 
@@ -41,3 +44,89 @@ def test_paths_named_in_skill_md_exist():
         assert named, '%s names no references or scripts' % skill
         missing = sorted(p for p in named if not (skill / p).is_file())
         assert not missing, '%s names missing files: %s' % (skill, missing)
+
+
+# --- plugin packaging ----------------------------------------------------------
+
+MARKETPLACE = REPO / '.claude-plugin' / 'marketplace.json'
+PLUGINS = REPO / 'plugins'
+EMAIL = re.compile(r'[\w.+-]+@[\w-]+\.[\w.-]+')
+
+
+def load_json(path):
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def plugin_roots():
+    roots = []
+    for entry in load_json(MARKETPLACE)['plugins']:
+        roots.append((entry, (REPO / entry['source']).resolve()))
+    return roots
+
+
+def test_marketplace_sources_hold_matching_plugin_manifests():
+    market = load_json(MARKETPLACE)
+    assert market.get('name') and market.get('owner', {}).get('name')
+    assert market['plugins'], 'marketplace lists no plugins'
+    for entry, root in plugin_roots():
+        manifest = root / '.claude-plugin' / 'plugin.json'
+        assert root.is_dir(), '%s: source %s missing' % (entry['name'], entry['source'])
+        assert manifest.is_file(), '%s has no plugin.json' % root
+        assert load_json(manifest)['name'] == entry['name']
+
+
+def test_plugin_skill_paths_resolve_to_skill_folders():
+    for entry, root in plugin_roots():
+        skills = load_json(root / '.claude-plugin' / 'plugin.json').get('skills', [])
+        skills = [skills] if isinstance(skills, str) else skills
+        assert skills, '%s declares no skills' % entry['name']
+        for rel in skills:
+            folder = root / rel
+            assert (folder / 'SKILL.md').is_file(), '%s: %s has no SKILL.md' % (
+                entry['name'], rel)
+            name = frontmatter(folder / 'SKILL.md')['name']
+            assert name == os.path.basename(os.path.normpath(rel))
+
+
+def test_hook_commands_point_at_existing_scripts():
+    for entry, root in plugin_roots():
+        hooks_file = root / 'hooks' / 'hooks.json'
+        if not hooks_file.exists():
+            continue
+        commands = [h['command']
+                    for groups in load_json(hooks_file)['hooks'].values()
+                    for group in groups for h in group['hooks']
+                    if h.get('type') == 'command']
+        assert commands
+        for command in commands:
+            expanded = command.replace('${CLAUDE_PLUGIN_ROOT}', str(root))
+            scripts = [t for t in shlex.split(expanded) if t.endswith('.py')]
+            assert scripts, 'no script in hook command %r' % command
+            for script in scripts:
+                assert os.path.isfile(script), 'hook script missing: %s' % script
+
+
+def test_no_symlink_under_plugins_loops_into_an_ancestor():
+    links = []
+    for dirpath, dirnames, filenames in os.walk(PLUGINS):
+        for name in dirnames + filenames:
+            path = os.path.join(dirpath, name)
+            if os.path.islink(path):
+                links.append(path)
+    assert links, 'expected the skill symlink under plugins/'
+    for link in links:
+        target = os.path.realpath(link)
+        assert os.path.exists(target), '%s is a dangling symlink' % link
+        ancestor = os.path.realpath(os.path.dirname(link))
+        while True:
+            assert target != ancestor, '%s points back at its ancestor %s' % (
+                link, ancestor)
+            parent = os.path.dirname(ancestor)
+            if parent == ancestor:
+                break
+            ancestor = parent
+
+
+def test_manifests_carry_no_email_address():
+    for path in [MARKETPLACE] + sorted(PLUGINS.glob('*/.claude-plugin/plugin.json')):
+        assert not EMAIL.search(path.read_text(encoding='utf-8')), path

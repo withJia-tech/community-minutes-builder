@@ -87,9 +87,38 @@ meeting nuance can be resolved automatically.
 The skill can work with a partial set. It identifies which checks or sections
 cannot be completed from the available evidence.
 
+## Install
+
+### As a Claude Code plugin
+
+```text
+/plugin marketplace add withJia-tech/community-minutes-builder
+/plugin install ccc-minutes-builder@community-minutes-builder
+```
+
+On Claude Code 2.1.275 or later, one line does both:
+
+```text
+/plugin install ccc-minutes-builder --marketplace withJia-tech/community-minutes-builder
+```
+
+The plugin adds the skill and the final-document hook described below.
+
+### Manual upload (any workspace that accepts a skill zip)
+
+Zip the skill folder itself, so the archive contains a top-level
+`ccc-minutes-builder/` folder with `SKILL.md` inside:
+
+```bash
+cd skills && zip -r ccc-minutes-builder.zip ccc-minutes-builder -x '*/__pycache__/*'
+```
+
+A manual upload gives you the skill but not the hook, so run the Phase 4
+checks yourself before calling a document final.
+
 ## Quick start
 
-1. Add the latest approved version of the skill to a supported AI workspace.
+1. Install the plugin, or upload the skill, in a supported AI workspace.
 2. Invoke it within that user instance.
 3. Provide the available meeting records and say whether you want a draft,
    update, audit or clean final.
@@ -126,6 +155,31 @@ python scripts/row_audit.py draft.docx \
 Each final check returns a non-zero exit status when a blocking condition
 remains. This makes the checks usable in a repeatable workflow rather than only
 as instructions to the model.
+
+## The hook enforces Phase 4
+
+Phase 4 of the skill says nothing bracketed reaches the Chairman for
+signature. The plugin turns that rule into a check the model cannot skip.
+
+After every shell command Claude runs, a `PostToolUse` hook
+(`plugins/ccc-minutes-builder/hooks/hooks.json`) runs
+`scripts/check_final_docx.py`. It looks in the working folder for Word files
+whose name starts with `final` (`final*.docx`, any case) and reads their
+visible text: body, tables, headers, footers, footnotes, endnotes and comments. If one
+still carries `[TBC]`, `[time]`, `TBD`, a `[name …]` placeholder or a
+bracketed editorial note, the hook exits with code 2. Claude Code then hands
+the file name and the markers back to Claude, which has to resolve them or
+leave the document as a draft.
+
+The hook is deliberately narrow:
+
+- **Only finals.** Drafts carry `[TBC]` legitimately until Phase 4, so a file
+  named `draft.docx` is never checked.
+- **Only known markers.** It uses the same patterns as `lint_minutes.py`. A
+  short bracket such as the citation `[1]` does not count.
+- **Fails open.** Unreadable input, a missing `lxml` or a damaged file prints
+  a note and lets work continue. The hook guards the signature step; it is
+  not a replacement for running the linter with `--final`.
 
 ## Model use
 
@@ -181,6 +235,8 @@ community-minutes-builder/
 ├── README.md
 ├── LICENSE
 ├── requirements-dev.txt          # lxml, pytest
+├── .claude-plugin/
+│   └── marketplace.json          # lists the plugin below
 ├── .github/workflows/ci.yml      # py_compile + pytest on Python 3.10–3.12
 ├── skills/
 │   └── ccc-minutes-builder/      # the skill itself
@@ -190,19 +246,28 @@ community-minutes-builder/
 │       │   └── docx-mechanics.md
 │       └── scripts/
 │           ├── attendance_audit.py
+│           ├── check_final_docx.py   # the Phase 4 hook
 │           ├── lint_minutes.py
 │           ├── row_audit.py
 │           └── swap_slide_images.py
+├── plugins/
+│   └── ccc-minutes-builder/
+│       ├── .claude-plugin/plugin.json
+│       ├── hooks/hooks.json
+│       └── skills/ccc-minutes-builder -> ../../../skills/ccc-minutes-builder
 └── tests/
     ├── fixtures/                 # synthetic JSON + build.py (no binaries)
     ├── test_gates.py
+    ├── test_hook.py
     └── test_structure.py
 ```
 
 The skill lives in `skills/ccc-minutes-builder/`. Paths inside `SKILL.md`,
-such as `scripts/lint_minutes.py`, are relative to that folder. When
-packaging it for an AI workspace, zip that folder; its name matches the
-`name` field in `SKILL.md`.
+such as `scripts/lint_minutes.py`, are relative to that folder. The plugin
+reaches the skill through a symlink to that folder (never to the repository
+root, which would make the plugin contain itself); Claude Code copies the
+real files when it installs the plugin. For a manual upload, zip the skill
+folder; its name matches the `name` field in `SKILL.md`.
 
 ## Running the tests
 
