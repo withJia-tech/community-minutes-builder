@@ -149,7 +149,9 @@ def main():
         errors.append('profile term_replacements must be an object')
         replacements = {}
     for wrong, right in replacements.items():
-        if wrong and re.search(re.escape(wrong), full, re.I):
+        # whole-term match, the same boundary as the alias check below, so a
+        # rule for "NEA" does not fire on "near"
+        if wrong and re.search(r'(?<!\w)%s(?!\w)' % re.escape(wrong), full, re.I):
             msg = 'unapproved term or spelling %r; approved form is %r' % (wrong, right)
             (errors if a.final else warnings).append(msg)
 

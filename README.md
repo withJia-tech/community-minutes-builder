@@ -159,17 +159,20 @@ as instructions to the model.
 ## The hook enforces Phase 4
 
 Phase 4 of the skill says nothing bracketed reaches the Chairman for
-signature. The plugin turns that rule into a check the model cannot skip.
+signature. The plugin turns that rule into a check that runs on its own,
+whether or not the model remembers it.
 
 After every shell command Claude runs, a `PostToolUse` hook
 (`plugins/ccc-minutes-builder/hooks/hooks.json`) runs
 `scripts/check_final_docx.py`. It looks in the working folder for Word files
 whose name starts with `final` (`final*.docx`, any case) and reads their
-visible text: body, tables, headers, footers, footnotes, endnotes and comments. If one
-still carries `[TBC]`, `[time]`, `TBD`, a `[name …]` placeholder or a
-bracketed editorial note, the hook exits with code 2. Claude Code then hands
-the file name and the markers back to Claude, which has to resolve them or
-leave the document as a draft.
+visible text: body, tables, headers, footers, footnotes, endnotes and
+comments. If one still carries `[TBC]`, `[time]`, `TBD`, a `[name …]`
+placeholder or a bracketed editorial note, the hook exits with code 2 and
+Claude Code passes the file name and the markers straight back to Claude.
+The hook runs after the command, so it cannot undo the file being written,
+but a final that still carries a marker cannot pass unnoticed: Claude has to
+resolve the markers with the drafter or leave the document as a draft.
 
 The hook is deliberately narrow:
 
@@ -213,20 +216,34 @@ Current technical limitations are also visible:
 
 ## Validation status
 
-The current package has passed structural skill validation and Python syntax
-checks. The included controls have also been exercised against small synthetic
-cases covering:
+The test suite in `tests/` generates small synthetic Word and PDF files and
+runs each script the way a user would, checking exit codes and exact output
+lines. CI is set up to run it on Python 3.10–3.12 for every pull request and
+every push to `main`. The tests show that:
 
-- a clean attendance match;
-- a wrong attendance category and title;
-- an unapproved name spelling;
-- unresolved `[TBC]` and `TBD` placeholders;
-- a duplicated word; and
-- a minute row with no confirmed source.
+- the attendance audit passes a clean match and blocks a wrong category or
+  title, naming the person;
+- the linter passes a clean draft and flags placeholders (a warning in draft
+  mode, an error with `--final`), unapproved name spellings and duplicated
+  words;
+- the row audit blocks a row with no confirmed source or with an unresolved
+  marker, suggests a deck slide for a matching row and lists slides that no
+  row covers;
+- the hook blocks a `final*.docx` that still carries a marker, and leaves
+  drafts, citations such as `[1]` and unreadable input alone;
+- the plugin's manifests, skill paths and hook paths resolve, and no symlink
+  loops back into the plugin; and
+- the four failures in [`research/failures.md`](research/failures.md) stay
+  fixed, each pinned by a regression test and a true-positive test.
 
-These tests show that the gates behave as intended on the covered cases. They
-do not yet establish reliability across every committee template, scan quality
-or Word layout. Broader sanitised fixtures are a sensible next step.
+The marketplace manifest also passes `claude plugin validate . --strict`,
+checked locally rather than in CI.
+
+These are small invented cases in the established table layout. They do not
+establish reliability across every committee template, scan quality or Word
+layout, and they say nothing about the quality of model-drafted prose. Every
+entry in the failures log so far comes from synthetic stress tests, not real
+meetings.
 
 ## Repository structure
 
@@ -255,6 +272,8 @@ community-minutes-builder/
 │       ├── .claude-plugin/plugin.json
 │       ├── hooks/hooks.json
 │       └── skills/ccc-minutes-builder -> ../../../skills/ccc-minutes-builder
+├── research/
+│   └── failures.md               # observed failures, fixes and their tests
 └── tests/
     ├── fixtures/                 # synthetic JSON + build.py (no binaries)
     ├── test_gates.py
@@ -294,10 +313,13 @@ handling requirements within the AI workspace they choose.
 
 The repository is intended to improve through observed failure cases. A useful
 contribution should make one behaviour clearer, more repeatable or easier to
-verify.
+verify. Record each failure in [`research/failures.md`](research/failures.md)
+following its protocol: symptom, root cause, smallest fix, and a regression
+test plus a true-positive test that pin it.
 
-Fork the project or create a branch, test the change with sanitised material,
-and submit it for review. Please preserve four working principles:
+Fork the project or create a branch, test the change with synthetic or
+sanitised material, run `python -m pytest tests/`, and submit it for
+review. Please preserve four working principles:
 
 - current evidence over inherited text;
 - explicit uncertainty over plausible inference;

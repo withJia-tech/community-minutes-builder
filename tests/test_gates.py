@@ -139,3 +139,91 @@ def test_row_audit_deck_suggests_slide_and_lists_unmatched(tmp_path, docs):
             'elsewhere or genuinely not tabled: 2') in out
     assert 'OVERALL VERDICT: PASS WITH WARNINGS' in out
     assert 'WARN     row 2 has only an automated source suggestion' in out
+
+
+# --- regression tests: research/failures.md --------------------------------------
+# Each failure gets a regression test (the bug stays fixed) and a true-positive
+# test (the fix did not switch the check off).
+
+ADVISER = 'Grassroots Adviser (present today)'
+
+
+def adviser_evidence(tmp_path, category='Absent with Apologies'):
+    data = {'Present': [{'name': n, 'title': t} for t, n in build.ATTENDANCE[0][1]],
+            'Absent with Apologies': [], 'In Attendance': []}
+    data[category].append({'name': 'David Ong', 'title': ADVISER})
+    return write_json(tmp_path / 'attendance.json', data)
+
+
+def test_failure_1_title_containing_category_word_is_not_a_header(tmp_path):
+    attendance = copy.deepcopy(build.ATTENDANCE)
+    attendance[1] = ('Absent with Apologies', [(ADVISER, 'David Ong')])
+    draft = build.build_docx(tmp_path / 'draft.docx', attendance=attendance)
+
+    r = run_script('attendance_audit.py', draft, '--evidence', adviser_evidence(tmp_path))
+    assert r.returncode == 0, r.stdout
+    assert 'OVERALL VERDICT: PASS' in lines(r)
+
+
+def test_failure_1_true_positive_category_conflict_still_reported(tmp_path):
+    # Minutes list the adviser as Present; evidence says Absent with Apologies.
+    attendance = copy.deepcopy(build.ATTENDANCE)
+    attendance[0] = ('Present', attendance[0][1] + [(ADVISER, 'David Ong')])
+    attendance[1] = ('Absent with Apologies', [])
+    draft = build.build_docx(tmp_path / 'draft.docx', attendance=attendance)
+
+    r = run_script('attendance_audit.py', draft, '--evidence', adviser_evidence(tmp_path))
+    out = lines(r)
+    assert r.returncode == 1
+    assert ("BLOCKER  'David Ong' is Absent with Apologies in evidence but "
+            "Present in minutes") in out
+    assert "BLOCKER  'David Ong' is in evidence but missing from minutes" not in out
+
+
+def nea_profile(tmp_path):
+    return write_json(tmp_path / 'profile.json',
+                      {'term_replacements': {'NEA': 'National Environment Agency'}})
+
+
+NEA_WARNING = ("WARN   unapproved term or spelling 'NEA'; approved form is "
+               "'National Environment Agency'")
+
+
+def test_failure_2_term_rule_does_not_fire_inside_a_word(tmp_path):
+    items = [('1', 'Environment. Residents near Block 123 asked for more '
+                   'frequent checks of stagnant water.', '')]
+    draft = build.build_docx(tmp_path / 'draft.docx', items=items)
+
+    r = run_script('lint_minutes.py', draft, '--profile', nea_profile(tmp_path))
+    assert NEA_WARNING not in lines(r), r.stdout
+
+
+def test_failure_2_true_positive_standalone_term_still_warns(tmp_path):
+    items = [('1', 'Environment. The NEA officer shared the dengue update.', 'NEA')]
+    draft = build.build_docx(tmp_path / 'draft.docx', items=items)
+
+    r = run_script('lint_minutes.py', draft, '--profile', nea_profile(tmp_path))
+    assert NEA_WARNING in lines(r), r.stdout
+
+
+def test_failure_3_short_citation_passes_row_audit(tmp_path):
+    items = items_with('2', 'Environment. The NEA officer shared that dengue '
+                            'cases around Block 123 had fallen [1].')
+    draft = build.build_docx(tmp_path / 'draft.docx', items=items)
+
+    lint = run_script('lint_minutes.py', draft, '--final')
+    assert lint.returncode == 0, lint.stdout
+    r = run_script('row_audit.py', draft, '--source-map', SOURCES)
+    assert r.returncode == 0, r.stdout
+    assert 'OVERALL VERDICT: PASS' in lines(r)
+
+
+def test_failure_3_true_positive_markers_still_block_row_audit(tmp_path):
+    for marker in ('[TBC]', '[check figures with the NEA officer]'):
+        items = items_with('2', 'Environment. The NEA officer shared that '
+                                'dengue cases had fallen %s.' % marker)
+        draft = build.build_docx(tmp_path / 'draft.docx', items=items)
+        r = run_script('row_audit.py', draft, '--source-map', SOURCES)
+        assert r.returncode == 1, (marker, r.stdout)
+        assert any(line.startswith('BLOCKER  row 2 carries an unresolved')
+                   and marker in line for line in lines(r)), (marker, r.stdout)

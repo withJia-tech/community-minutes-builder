@@ -15,6 +15,8 @@ import subprocess
 import zipfile
 from lxml import etree
 
+from lint_minutes import unresolved_markers
+
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 STOP = set('''the a an and or of to in for on at with by from is are was were
 be been this that these those as it its their his her they he she we our
@@ -125,9 +127,13 @@ def main():
         old = prev.get(num, '')
         if old and text.strip() and old.strip() == text.strip():
             signals.append('**identical to last month**')
-        if re.search(r'\[', text):
-            signals.append('unresolved bracket')
-            blockers.append('row %s carries an unresolved bracket' % num)
+        # same markers as lint_minutes.py, so a citation such as [1] passes
+        # here exactly as it passes the linter
+        markers = unresolved_markers(text)
+        if markers:
+            signals.append('unresolved marker')
+            blockers.append('row %s carries an unresolved marker: %s'
+                            % (num, ', '.join(markers)))
         if not text.strip() and has_img:
             signals.append('image only')
         snippet = (text[:60] + '…') if len(text) > 60 else text

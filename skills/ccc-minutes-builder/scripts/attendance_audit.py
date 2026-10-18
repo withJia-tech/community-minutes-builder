@@ -59,11 +59,15 @@ def attendance_rows(path):
     people = []
     for tr in best.findall(W + 'tr'):
         cells = [cell_text(c) for c in tr.findall(W + 'tc')]
-        row_text = key(' '.join(cells))
-        matched = [label for label in CATEGORIES if key(label) in row_text]
-        if matched:
-            current = matched[0]
-            continue
+        # Header rows are short and person rows have 4 cells, so only a short
+        # row can be a category header. A title such as "Grassroots Adviser
+        # (present today)" must not switch the category.
+        if len(cells) < 4:
+            row_text = key(' '.join(cells))
+            matched = [label for label in CATEGORIES if key(label) in row_text]
+            if matched:
+                current = matched[0]
+                continue
         if current is None or len(cells) < 4:
             continue
         title, name = cells[1], cells[3]
