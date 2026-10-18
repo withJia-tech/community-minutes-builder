@@ -103,6 +103,8 @@ Example request:
 ### Run the checks directly
 
 ```bash
+cd skills/ccc-minutes-builder
+
 # Compare the Word attendance table with confirmed current evidence
 python scripts/attendance_audit.py draft.docx \
   --evidence attendance.json
@@ -178,21 +180,41 @@ or Word layout. Broader sanitised fixtures are a sensible next step.
 community-minutes-builder/
 ├── README.md
 ├── LICENSE
-├── .gitignore
-├── SKILL.md
-├── references/
-│   ├── house-style.md
-│   └── docx-mechanics.md
-└── scripts/
-    ├── attendance_audit.py
-    ├── lint_minutes.py
-    ├── row_audit.py
-    └── swap_slide_images.py
+├── requirements-dev.txt          # lxml, pytest
+├── .github/workflows/ci.yml      # py_compile + pytest on Python 3.10–3.12
+├── skills/
+│   └── ccc-minutes-builder/      # the skill itself
+│       ├── SKILL.md
+│       ├── references/
+│       │   ├── house-style.md
+│       │   └── docx-mechanics.md
+│       └── scripts/
+│           ├── attendance_audit.py
+│           ├── lint_minutes.py
+│           ├── row_audit.py
+│           └── swap_slide_images.py
+└── tests/
+    ├── fixtures/                 # synthetic JSON + build.py (no binaries)
+    ├── test_gates.py
+    └── test_structure.py
 ```
 
-The skill itself is the repository root: `SKILL.md`, `references/` and
-`scripts/`. When packaging it for an AI workspace, zip those into a folder
-named `ccc-minutes-builder`, matching the `name` field in `SKILL.md`.
+The skill lives in `skills/ccc-minutes-builder/`. Paths inside `SKILL.md`,
+such as `scripts/lint_minutes.py`, are relative to that folder. When
+packaging it for an AI workspace, zip that folder; its name matches the
+`name` field in `SKILL.md`.
+
+## Running the tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest tests/ -v
+```
+
+The deck tests need Poppler (`pdfinfo`, `pdftotext`) and are skipped when it
+is not installed. The `.docx` and `.pdf` fixtures are generated into a
+temporary folder at test time by `tests/fixtures/build.py`, so the
+repository's rule against committing Word and PDF files stays intact.
 
 ## Privacy
 

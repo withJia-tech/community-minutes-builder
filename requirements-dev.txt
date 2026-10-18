@@ -1,0 +1,4 @@
+# Test-only dependencies. The skill itself also needs Pillow for
+# swap_slide_images.py, which the tests do not exercise.
+lxml>=4.9
+pytest>=7
