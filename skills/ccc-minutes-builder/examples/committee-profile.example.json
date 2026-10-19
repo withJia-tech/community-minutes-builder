@@ -1,0 +1,13 @@
+{
+  "term_replacements": {
+    "Example Committee Name": "Approved Committee Name"
+  },
+  "people": [
+    {
+      "name": "Example Name",
+      "titles": ["Chairman"],
+      "aliases": ["Exmaple Name"]
+    }
+  ],
+  "action_tags": ["AGENCY-A", "AGENCY-B"]
+}

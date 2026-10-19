@@ -184,6 +184,48 @@ The hook is deliberately narrow:
   a note and lets work continue. The hook guards the signature step; it is
   not a replacement for running the linter with `--final`.
 
+## Fork and tailor
+
+The checks are generic. What differs between committees lives in one JSON
+file, the committee profile, so a fork can adapt the skill without editing
+any script.
+
+1. Fork the repository, or copy `skills/ccc-minutes-builder/`.
+2. Copy `skills/ccc-minutes-builder/examples/committee-profile.example.json`
+   and replace the placeholders with your committee's approved terms:
+   - `term_replacements`: wrong or old wording mapped to the approved form;
+   - `people`: canonical names, allowed titles and known misspellings;
+   - `action_tags`: the agency tags used in your action column (leave the key
+     out to skip that check; there is no built-in list).
+3. Pass it with `--profile` as shown in "Run the checks directly".
+4. Edit `references/house-style.md` and the wording in `SKILL.md` to match
+   your committee's naming, register and section order. These are prose,
+   not code, and are the parts most likely to need your own judgement.
+5. Rename the plugin in `plugin.json` and `.claude-plugin/marketplace.json`
+   if you publish your own copy. `tests/test_structure.py` checks the names
+   still match.
+
+Keep real minutes and attendance sheets out of your fork if it is public;
+use synthetic fixtures like those in `tests/fixtures/`.
+
+## Releases and updates
+
+An installed plugin is a snapshot: Claude Code copies it into a cache and
+loads the copy. The plugin version is set in
+`plugins/ccc-minutes-builder/.claude-plugin/plugin.json`, and Claude Code
+only offers an update when that string changes. Pushing commits without
+bumping it reaches nobody who has already installed the plugin.
+
+So each reviewed release bumps `version`, and unreleased commits on `main`
+are not shipped. Auto-update is off by default for third-party
+marketplaces, so users also run `/plugin marketplace update` to see a new
+release. If you would rather every commit reach users, delete `version`
+from `plugin.json` and Claude Code will use the commit instead.
+
+**0.2.0** removes the built-in list of agency tags (`NPC`, `LTA`, `HDB`,
+`NEA`, `CCKTC`, `FSC`) from the linter. If you relied on it, add
+`"action_tags": [...]` to your profile.
+
 ## Model use
 
 The workflow is designed to run on a smaller capable model first. Where the
@@ -231,6 +273,8 @@ every push to `main`. The tests show that:
   row covers;
 - the hook blocks a `final*.docx` that still carries a marker, and leaves
   drafts, citations such as `[1]` and unreadable input alone;
+- the example committee profile is valid and runs through the linter;
+- action tags are checked only when the profile lists them;
 - the plugin's manifests, skill paths and hook paths resolve, and no symlink
   loops back into the plugin; and
 - the four failures in [`research/failures.md`](research/failures.md) stay
@@ -258,6 +302,8 @@ community-minutes-builder/
 ├── skills/
 │   └── ccc-minutes-builder/      # the skill itself
 │       ├── SKILL.md
+│       ├── examples/
+│       │   └── committee-profile.example.json
 │       ├── references/
 │       │   ├── house-style.md
 │       │   └── docx-mechanics.md
