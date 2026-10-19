@@ -3,9 +3,43 @@
     "Citizens Consultative Committee": "Citizens' Consultative Committee"
   },
   "people": [
-    {"name": "Alice Lim", "titles": ["Mdm", "Chairman"], "aliases": ["Alice Lee"]},
-    {"name": "Benjamin Tan", "titles": ["Mr"], "aliases": ["Benjamin Tang"]},
-    {"name": "Chloe Ng", "titles": ["Ms"], "aliases": []},
-    {"name": "David Ong", "titles": ["Mr"], "aliases": []}
+    {
+      "name": "Alice Lim",
+      "titles": [
+        "Mdm",
+        "Chairman"
+      ],
+      "aliases": [
+        "Alice Lee"
+      ]
+    },
+    {
+      "name": "Benjamin Tan",
+      "titles": [
+        "Mr"
+      ],
+      "aliases": [
+        "Benjamin Tang"
+      ]
+    },
+    {
+      "name": "Chloe Ng",
+      "titles": [
+        "Ms"
+      ],
+      "aliases": []
+    },
+    {
+      "name": "David Ong",
+      "titles": [
+        "Mr"
+      ],
+      "aliases": []
+    }
+  ],
+  "action_tags": [
+    "NEA",
+    "LTA",
+    "HDB"
   ]
 }

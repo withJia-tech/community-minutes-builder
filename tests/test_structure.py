@@ -130,3 +130,20 @@ def test_no_symlink_under_plugins_loops_into_an_ancestor():
 def test_manifests_carry_no_email_address():
     for path in [MARKETPLACE] + sorted(PLUGINS.glob('*/.claude-plugin/plugin.json')):
         assert not EMAIL.search(path.read_text(encoding='utf-8')), path
+
+
+def test_example_profile_is_a_valid_profile():
+    example = SKILL / 'examples' / 'committee-profile.example.json'
+    profile = load_json(example)
+    assert set(profile) <= {'term_replacements', 'people', 'action_tags'}
+    assert isinstance(profile['term_replacements'], dict)
+    assert all(p.get('name') for p in profile['people'])
+    assert isinstance(profile['action_tags'], list)
+    assert not EMAIL.search(example.read_text(encoding='utf-8'))
+
+
+def test_version_is_set_in_plugin_json_only():
+    # With a version in both places Claude Code silently uses plugin.json's.
+    for entry, root in plugin_roots():
+        assert 'version' not in entry, '%s: set version in plugin.json only' % entry['name']
+        assert load_json(root / '.claude-plugin' / 'plugin.json').get('version')

@@ -5,7 +5,7 @@ Each test asserts the exit code and the exact output line a drafter would see.
 import copy
 
 import build
-from helpers import FIXTURES, lines, needs_poppler, run_script, write_json
+from helpers import FIXTURES, SKILL as SKILL_DIR, lines, needs_poppler, run_script, write_json
 
 PROFILE = FIXTURES / 'committee-profile.json'
 EVIDENCE = FIXTURES / 'attendance.json'
@@ -227,3 +227,31 @@ def test_failure_3_true_positive_markers_still_block_row_audit(tmp_path):
         assert r.returncode == 1, (marker, r.stdout)
         assert any(line.startswith('BLOCKER  row 2 carries an unresolved')
                    and marker in line for line in lines(r)), (marker, r.stdout)
+
+
+# --- action tags come from the profile, not from the code ------------------------
+
+CARRIED_OVER = [('1', 'Transport. Residents asked for a bus stop shelter.', 'LTA')]
+LTA_WARNING = ('WARN   row 1 action column is tagged LTA but the row does not '
+               'mention LTA — likely carried over')
+
+
+def test_action_tags_default_to_none(tmp_path):
+    # No profile, so no agency list is assumed: a fork outside Singapore
+    # must not get warnings about someone else's agencies.
+    draft = build.build_docx(tmp_path / 'draft.docx', items=CARRIED_OVER)
+    r = run_script('lint_minutes.py', draft)
+    assert LTA_WARNING not in lines(r), r.stdout
+
+
+def test_action_tags_from_profile_still_warn(tmp_path):
+    draft = build.build_docx(tmp_path / 'draft.docx', items=CARRIED_OVER)
+    profile = write_json(tmp_path / 'profile.json', {'action_tags': ['LTA', 'HDB']})
+    r = run_script('lint_minutes.py', draft, '--profile', profile)
+    assert LTA_WARNING in lines(r), r.stdout
+
+
+def test_example_profile_runs_through_the_linter(docs):
+    example = SKILL_DIR / 'examples' / 'committee-profile.example.json'
+    r = run_script('lint_minutes.py', docs['draft'], '--profile', example)
+    assert r.returncode == 0, r.stdout

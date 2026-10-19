@@ -209,9 +209,10 @@ def main():
             notes.append('row %s says "as at %s" — confirm the date moved'
                          % (num or '?', m.group(1).strip()))
 
-    # action column tags naming an agency absent from the row
-    action_tags = profile.get('action_tags',
-                              ['NPC', 'LTA', 'HDB', 'NEA', 'CCKTC', 'FSC'])
+    # action column tags naming an agency absent from the row. The agencies
+    # differ by committee, so the list comes from the profile; with no
+    # profile entry nothing is checked.
+    action_tags = profile.get('action_tags', [])
     if not isinstance(action_tags, list):
         errors.append('profile action_tags must be a list')
         action_tags = []

@@ -51,9 +51,17 @@ When using `scripts/lint_minutes.py --profile`, supply a JSON profile such as:
       "titles": ["Assistant Secretary"],
       "aliases": ["Exmaple Name"]
     }
-  ]
+  ],
+  "action_tags": ["AGENCY-A", "AGENCY-B"]
 }
 ```
+
+`action_tags` lists the agency or office tags that appear in the action
+column. When a row's action column carries a tag that the row text never
+mentions, the linter warns that it was probably carried over from last month.
+There is no built-in list, because agencies differ by committee: leave the key
+out and the check is off. A ready-to-copy file is in
+`examples/committee-profile.example.json`.
 
 Replace the example values with approved evidence. Treat aliases as spellings
 that must not appear in the final document, not as permission to rewrite a
