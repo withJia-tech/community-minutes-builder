@@ -1,23 +1,18 @@
 #!/usr/bin/env python3
-"""Row-by-row audit table for a minutes draft.
+"""Audit numbered minutes against independently confirmed source citations.
 
-    python row_audit.py draft.docx --deck slides.pdf --previous june.docx
-
-Emits a markdown table of every numbered row with a suggested source and any
-carry-over signal. The suggested source is a keyword match and is meant to be
-checked by a person, not trusted — an empty Source column is the point of the
-exercise, not a defect in the script.
+Keyword matching is for discovery only. A proposed deck slide never satisfies
+this gate: a citation must be explicitly entered in --source-map by a reviewer.
 """
 import argparse
 import json
 import re
 import subprocess
-import zipfile
-from lxml import etree
+import sys
 
+from docx_layout import DocumentShapeError, read_rows
 from lint_minutes import unresolved_markers
 
-W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 STOP = set('''the a an and or of to in for on at with by from is are was were
 be been this that these those as it its their his her they he she we our
 please refer more information slide deck report update shared presented
@@ -25,44 +20,36 @@ members committee meeting minutes will would also has have had not no'''.split()
 
 
 def rows(path):
-    with zipfile.ZipFile(path) as z:
-        root = etree.fromstring(z.read('word/document.xml'))
-    tbl = root.find(W + 'body').findall(W + 'tbl')[-1]
-    out = []
-    for tr in tbl.findall(W + 'tr'):
-        cells = tr.findall(W + 'tc')
-        if len(cells) < 3:
-            continue
-        vals = [''.join(t.text or '' for t in c.iter(W + 't')) for c in cells]
-        has_img = tr.find('.//' + W + 'drawing') is not None
-        out.append((vals[0].strip(), ' '.join(vals[1].split()), has_img))
-    return out
+    return [(r.number, r.content, r.has_image) for r in read_rows(path)]
 
 
 def deck_pages(pdf):
-    pages = []
-    n = 0
-    info = subprocess.run(['pdfinfo', pdf], capture_output=True, text=True).stdout
-    m = re.search(r'Pages:\s+(\d+)', info)
-    if m:
-        n = int(m.group(1))
-    for p in range(1, n + 1):
-        txt = subprocess.run(
-            ['pdftotext', '-f', str(p), '-l', str(p), pdf, '-'],
-            capture_output=True, text=True, errors='replace').stdout
-        pages.append(' '.join(txt.split()))
-    return pages
+    try:
+        info = subprocess.run(['pdfinfo', str(pdf)], capture_output=True,
+                              text=True, check=True).stdout
+        match = re.search(r'^Pages:\s+(\d+)\s*$', info, re.M)
+        if match is None or int(match.group(1)) < 1:
+            raise ValueError('pdfinfo did not report a positive slide count')
+        pages = []
+        for p in range(1, int(match.group(1)) + 1):
+            result = subprocess.run(['pdftotext', '-f', str(p), '-l', str(p),
+                                     str(pdf), '-'], capture_output=True,
+                                    text=True, errors='replace', check=True)
+            pages.append(' '.join(result.stdout.split()))
+        return pages
+    except (OSError, subprocess.CalledProcessError, ValueError) as exc:
+        raise ValueError('cannot extract deck pages: %s' % exc) from exc
 
 
 def keywords(text, k=8):
     words = re.findall(r"[A-Za-z][A-Za-z'&-]{3,}", text)
     seen, out = set(), []
-    for w in words:
-        lw = w.lower()
-        if lw in STOP or lw in seen:
+    for word in words:
+        lower = word.lower()
+        if lower in STOP or lower in seen:
             continue
-        seen.add(lw)
-        out.append(w)
+        seen.add(lower)
+        out.append(word)
         if len(out) >= k:
             break
     return out
@@ -73,109 +60,89 @@ def best_page(text, pages):
     if not kws or not pages:
         return None, 0
     best, score = None, 0
-    for i, page in enumerate(pages, 1):
+    for index, page in enumerate(pages, 1):
         low = page.lower()
-        s = sum(1 for k in kws if k.lower() in low)
-        if s > score:
-            best, score = i, s
-    return best, score / max(len(kws), 1)
+        score_here = sum(1 for kw in kws if kw.lower() in low)
+        if score_here > score:
+            best, score = index, score_here
+    return best, score / len(kws)
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('docx')
-    ap.add_argument('--deck', help='meeting slide deck PDF')
-    ap.add_argument('--previous', help='previous month\'s minutes, to spot carry-over')
-    ap.add_argument('--source-map', help='JSON object mapping row numbers to confirmed source citations')
-    a = ap.parse_args()
-
-    pages = deck_pages(a.deck) if a.deck else []
-    prev = {n: t for n, t, _ in rows(a.previous)} if a.previous else {}
-    confirmed = {}
-    if a.source_map:
-        with open(a.source_map, encoding='utf-8') as f:
-            confirmed = json.load(f)
+def main(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('docx')
+    parser.add_argument('--deck', help='meeting slide deck PDF')
+    parser.add_argument('--previous', help='previous approved minutes')
+    parser.add_argument('--source-map', help='JSON mapping row numbers to confirmed citations')
+    args = parser.parse_args(argv)
+    try:
+        current_rows = rows(args.docx)
+        pages = deck_pages(args.deck) if args.deck else []
+        previous = {n: t for n, t, _ in rows(args.previous)} if args.previous else {}
+        with open(args.source_map, encoding='utf-8') if args.source_map else _empty_source_map() as fh:
+            confirmed = json.load(fh)
         if not isinstance(confirmed, dict):
-            raise SystemExit('source map must be a JSON object keyed by row number')
+            raise ValueError('source map must be a JSON object keyed by row number')
+    except (DocumentShapeError, ValueError, OSError, json.JSONDecodeError) as exc:
+        print('OVERALL VERDICT: FAIL')
+        print('BLOCKER  %s' % exc)
+        return 1
 
     blockers, warnings = [], []
     seen_rows = set()
-
-    print('| Row | Content (start) | Suggested source | Signal |')
-    print('|---|---|---|---|')
-    for num, text, has_img in rows(a.docx):
-        if not text.strip() and not has_img:
-            continue
-        if not num:
-            continue
+    print('| Row | Content (start) | Suggested source (not evidence) | Confirmed source | Signal |')
+    print('|---|---|---|---|---|')
+    for num, content, has_image in current_rows:
         seen_rows.add(num)
-        page, conf = best_page(text, pages)
-        if num in confirmed and str(confirmed[num]).strip():
-            source = str(confirmed[num]).strip()
-        elif page and conf >= 0.4:
-            source = 'Deck slide %d' % page
-            warnings.append('row %s has only an automated source suggestion' % num)
-        elif page and conf >= 0.2:
-            source = 'Deck slide %d (weak)' % page
-            warnings.append('row %s has only a weak automated source suggestion' % num)
-        else:
-            source = '**none found**'
+        page, confidence = best_page(content, pages)
+        suggestion = 'Deck slide %d' % page if page else '—'
+        if page and confidence < 0.4:
+            suggestion += ' (weak)'
+        source = confirmed.get(num)
+        if not isinstance(source, str) or not source.strip():
+            source = '**UNCONFIRMED**'
             blockers.append('row %s has no confirmed source' % num)
+        else:
+            source = source.strip()
         signals = []
-        if has_img:
-            signals.append('has embedded image — confirm it was replaced')
-        old = prev.get(num, '')
-        if old and text.strip() and old.strip() == text.strip():
+        if has_image:
+            signals.append('has embedded image — confirm current reporting period')
+        if previous.get(num, '').strip() == content.strip() and content.strip() and num in previous:
             signals.append('**identical to last month**')
-        # same markers as lint_minutes.py, so a citation such as [1] passes
-        # here exactly as it passes the linter
-        markers = unresolved_markers(text)
+        markers = unresolved_markers(content)
         if markers:
             signals.append('unresolved marker')
-            blockers.append('row %s carries an unresolved marker: %s'
-                            % (num, ', '.join(markers)))
-        if not text.strip() and has_img:
+            blockers.append('row %s carries an unresolved marker: %s' % (num, ', '.join(markers)))
+        if not content.strip() and has_image:
             signals.append('image only')
-        snippet = (text[:60] + '…') if len(text) > 60 else text
-        print('| %s | %s | %s | %s |'
-              % (num, snippet.replace('|', '/'), source, '; '.join(signals)))
+        snippet = content[:60] + '…' if len(content) > 60 else content
+        print('| %s | %s | %s | %s | %s |' % (
+            num, snippet.replace('|', '/'), suggestion, source.replace('|', '/'),
+            '; '.join(signals)))
 
     print()
     if pages:
-        thin = [i for i, p in enumerate(pages, 1) if len(p.split()) < 12]
+        thin = [index for index, page in enumerate(pages, 1) if len(page.split()) < 12]
         if thin:
-            print('Slides carrying almost no extractable text (mostly images, '
-                  'so keyword matching cannot see them — check these by eye): %s'
-                  % ', '.join(map(str, thin)))
+            print('Image-heavy slides requiring manual visual inspection: %s' %
+                  ', '.join(map(str, thin)))
             warnings.append('image-heavy slides require visual source checking')
-        matched = set()
-        for num, text, _ in rows(a.docx):
-            if num:
-                pg, conf = best_page(text, pages)
-                if pg and conf >= 0.2:
-                    matched.add(pg)
-        unmatched = [i for i in range(1, len(pages) + 1)
-                     if i not in matched and i not in thin]
+        matched = {page for _, content, _ in current_rows
+                   for page, conf in [best_page(content, pages)]
+                   if page is not None and conf >= 0.2}
+        unmatched = [index for index in range(1, len(pages) + 1)
+                     if index not in matched and index not in thin]
         if unmatched:
-            print('Slides with no matching row — confirm each was either '
-                  'covered elsewhere or genuinely not tabled: %s'
-                  % ', '.join(map(str, unmatched)))
+            print('Slides with no matching row — confirm each was either covered '
+                  'elsewhere or genuinely not tabled: %s' % ', '.join(map(str, unmatched)))
             warnings.append('one or more deck slides have no matching minute row')
         print()
-    unused = sorted(set(map(str, confirmed)) - seen_rows)
+    unused = sorted(set(confirmed) - seen_rows)
     if unused:
-        warnings.append('source map contains rows absent from the draft: %s' %
-                        ', '.join(unused))
-    print('Fill the Source column by hand where it says none found. A row with '
-          'no source in the deck must trace to the annexes or to the '
-          "secretary's notes, or it should not be in the minutes. Keyword "
-          'matching is a prompt for the eye, not a verdict.')
-    if blockers:
-        verdict = 'FAIL'
-    elif warnings:
-        verdict = 'PASS WITH WARNINGS'
-    else:
-        verdict = 'PASS'
+        warnings.append('source map contains rows absent from the draft: %s' % ', '.join(unused))
+    print('Automated suggestions are not citations. Review current evidence and '
+          'enter each confirmed citation in --source-map.')
+    verdict = 'FAIL' if blockers else ('PASS WITH WARNINGS' if warnings else 'PASS')
     print('\nOVERALL VERDICT: %s' % verdict)
     for item in blockers:
         print('BLOCKER  %s' % item)
@@ -184,5 +151,11 @@ def main():
     return 1 if blockers else 0
 
 
+def _empty_source_map():
+    """Return a context-manager-compatible empty JSON map when omitted."""
+    from io import StringIO
+    return StringIO('{}')
+
+
 if __name__ == '__main__':
-    raise SystemExit(main())
+    sys.exit(main())

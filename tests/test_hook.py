@@ -1,5 +1,6 @@
 """The PostToolUse hook blocks a final that still carries a marker, and nothing else."""
 import json
+import os
 
 import build
 from helpers import run_script
@@ -12,8 +13,11 @@ def items_with(row, text):
             for num, body, action in build.DRAFT_ITEMS]
 
 
-def run_hook(cwd):
-    return run_script(HOOK, stdin=json.dumps({'cwd': str(cwd), 'tool_name': 'Bash'}))
+def run_hook(cwd, output_dir=None):
+    env = dict(os.environ)
+    if output_dir is not None:
+        env['CCC_MINUTES_OUTPUT_DIR'] = str(output_dir)
+    return run_script(HOOK, stdin=json.dumps({'cwd': str(cwd), 'tool_name': 'Bash'}), env=env)
 
 
 def test_final_with_tbc_blocks(tmp_path):
@@ -29,7 +33,7 @@ def test_final_in_subfolder_with_mixed_case_name_blocks(tmp_path):
     (tmp_path / 'july').mkdir()
     build.build_docx(tmp_path / 'july' / 'Final_July_Minutes.docx',
                      items=items_with('4', 'Proposed by [name of proposer].'))
-    r = run_hook(tmp_path)
+    r = run_hook(tmp_path, output_dir=tmp_path / 'july')
     assert r.returncode == 2, r.stderr
     assert '[name of proposer]' in r.stderr
 
@@ -64,14 +68,14 @@ def test_skipped_folders_are_not_searched(tmp_path):
     assert r.returncode == 0, r.stderr
 
 
-def test_non_json_input_fails_open(tmp_path):
+def test_non_json_input_fails_closed(tmp_path):
     r = run_script(HOOK, stdin='this is not json')
-    assert r.returncode == 0
-    assert 'skipping' in r.stderr
+    assert r.returncode == 2
+    assert 'cannot establish final-document scope' in r.stderr
 
 
-def test_unreadable_final_fails_open(tmp_path):
+def test_unreadable_final_fails_closed(tmp_path):
     (tmp_path / 'final.docx').write_bytes(b'not a zip file')
     r = run_hook(tmp_path)
-    assert r.returncode == 0
-    assert 'could not read' in r.stderr
+    assert r.returncode == 2
+    assert 'cannot validate DOCX' in r.stderr

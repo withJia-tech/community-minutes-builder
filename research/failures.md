@@ -110,3 +110,30 @@ Later entries should come from real, anonymised use. For each one:
   fails when the link is pointed back at the root) and
   `test_plugin_skill_paths_resolve_to_skill_folders` (true positive: the
   link still reaches a folder with `SKILL.md`).
+
+## 5–10. Release-gate regressions (synthetic)
+
+- **5. Unconfirmed deck hit passed.** Keyword match was treated as a warning.
+  Fix: always block missing source-map citations. Tests:
+  `test_row_audit_deck_suggests_slide_and_lists_unmatched` and
+  `test_row_audit_unmapped_row_blocks`.
+- **6. Missing or duplicate minutes rows could pass or crash.** Fix: shared
+  `docx_layout.py` validator, rejects empty/malformed/unumbered/duplicate rows.
+  Tests: `test_empty_document_fails_both_linter_and_row_audit`,
+  `test_duplicate_numbers_and_unnumbered_content_are_rejected`,
+  `test_malformed_docx_fails_cleanly`.
+- **7. Attendance roster title masked untitled first body mention.** Fix:
+  match the first minutes-body occurrence with an adjacent approved title.
+  Tests: `test_first_body_title_missing_is_blocker_even_if_roster_has_titles`,
+  `test_split_runs_are_reconstructed_for_placeholders_and_titles`.
+- **8. Hook failed open on damaged finals.** Fix: error status `2` and
+  designated output-directory checks. Tests:
+  `test_invalid_hook_input_and_damaged_final_block`,
+  `test_hook_only_checks_configured_output_directory`.
+- **9. Rendered image files escaped the ignored workspace.** Fix:
+  `TemporaryDirectory` cleanup, media-path containment checks and local
+  previews. Tests: `test_swap_refuses_path_traversal`,
+  `test_swap_cleans_temporary_renderings_and_keeps_preview_local`.
+- **10. Calendar-year rollover was not assessed.** Fix: explicit
+  `--report-year`; older dates now require human review. Test:
+  `test_cross_year_stale_date_warns_and_blocks_final`.

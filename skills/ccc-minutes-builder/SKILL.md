@@ -188,18 +188,21 @@ Once the drafter has answered, produce a clean version with every `[TBC]`
 and every bracketed editorial note removed. Verify zero remain:
 
 ```bash
-extract-text final.docx | grep -c "TBC"    # must be 0
+python scripts/lint_minutes.py final.docx --profile committee-profile.json --final
 ```
 
 Nothing bracketed reaches the Chairman for signature. Flags belong in the
 chat and in the reconciliation list, never in the document that gets signed.
 
 When this skill is installed as a Claude Code plugin, a hook enforces this
-step: after each shell command, `scripts/check_final_docx.py` checks every
-`final*.docx` in the working folder and blocks while one still carries a
-placeholder or bracketed note. Drafts are not checked. If the hook blocks,
+step: after each shell command, `scripts/check_final_docx.py` checks `final*.docx` immediately inside the working folder, or the
+explicit `CCC_MINUTES_OUTPUT_DIR`, and blocks on structural or marker
+failures. It does not recursively scan arbitrary subfolders. Drafts are not checked. If the hook blocks,
 resolve the item with the drafter or keep the document as a draft; never
 strip a marker just to get past it.
+
+Before releasing a final, install runtime dependencies and run
+`python scripts/preflight.py`. The plugin does not install dependencies.
 
 Run the final linter against the whole DOCX package, including the attendance
 table, body, headers and footers. When a reusable committee profile is

@@ -113,3 +113,11 @@ proper-name spellings, aliases that must not appear, and nearby title/name
 pairs. In `--final` mode, errors and warnings both return a non-zero status.
 Treat that status as a failed signature-ready gate; do not suppress it by
 removing evidence or placeholders that remain unresolved.
+
+## Privacy and scoped previews
+
+Work only inside a git-ignored `workspace/` directory. Never commit unpacked
+DOCX XML, embedded images, signatures or previews. `swap_slide_images.py`
+now writes `preview_<rid>.png` inside the unpacked directory by default, cleans
+its temporary renderings, rejects media targets outside `word/media/`, and
+requires an explicit `--preview` argument to place previews elsewhere.
