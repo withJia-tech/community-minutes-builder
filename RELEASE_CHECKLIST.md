@@ -22,6 +22,6 @@ release commit. Record a URL or command output for each check.
 - [ ] Get a human review of the release commit and run all release tests again.
 - [ ] Tag `v<version>` on that **verified** commit, where `<version>` is the
       version in `plugins/ccc-minutes-builder/.claude-plugin/plugin.json`
-      (currently 0.2.0), and publish release notes.
+      (currently 0.3.0), and publish release notes.
 
 Tagging is prohibited while ownership is unresolved or CI is unverified.
