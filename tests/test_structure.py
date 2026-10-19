@@ -46,6 +46,27 @@ def test_paths_named_in_skill_md_exist():
         assert not missing, '%s names missing files: %s' % (skill, missing)
 
 
+GUIDE = REPO / 'docs' / 'volunteer-guide.md'
+
+
+def test_paths_named_in_volunteer_guide_exist():
+    text = GUIDE.read_text(encoding='utf-8')
+    skill_paths = set(re.findall(
+        r'(?<![\w/.-])((?:references|scripts)/[\w./-]*?\.(?:md|py))\b', text))
+    repo_paths = set(re.findall(r'(?<![\w/.-])(skills/[\w./-]*[\w-])', text))
+    assert skill_paths and repo_paths, 'the guide should name the files it tells people to use'
+    missing = sorted(p for p in skill_paths if not (SKILL / p).is_file())
+    missing += sorted(p for p in repo_paths if not (REPO / p).exists())
+    assert not missing, 'docs/volunteer-guide.md names missing paths: %s' % missing
+
+
+def test_volunteer_guide_install_command_matches_the_marketplace():
+    market = json.loads((REPO / '.claude-plugin' / 'marketplace.json').read_text(encoding='utf-8'))
+    plugin = market['plugins'][0]['name']
+    text = GUIDE.read_text(encoding='utf-8')
+    assert '/plugin install %s@%s' % (plugin, market['name']) in text
+
+
 # --- plugin packaging ----------------------------------------------------------
 
 MARKETPLACE = REPO / '.claude-plugin' / 'marketplace.json'

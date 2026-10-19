@@ -1,6 +1,6 @@
 ---
 name: ccc-minutes-builder
-description: "Build or audit signature-ready Citizens' Consultative Committee (CCC) and grassroots committee monthly minutes in Word. Use for drafting minutes from source records or checking attendance, official names and titles, terminology, dates, figures, slide-to-row coverage, stale carry-forwards, embedded tables, placeholders, spelling and formatting. Trigger for CCC or grassroots minutes even when the files have generic or misleading names; reconciliation and source traceability are mandatory outcomes."
+description: "Build or audit signature-ready Citizens' Consultative Committee (CCC) and grassroots committee monthly minutes in Word. Use for drafting minutes from source records, including a meeting transcript with the secretary's time-stamped markers, or checking attendance, official names and titles, terminology, dates, figures, slide-to-row coverage, stale carry-forwards, embedded tables, placeholders, spelling and formatting. Trigger for CCC or grassroots minutes even when the files have generic or misleading names; reconciliation and source traceability are mandatory outcomes."
 ---
 
 # CCC minutes builder
@@ -51,8 +51,9 @@ Use the same fixed sequence on smaller models: preflight, extract, reconcile,
 draft, lint, render, row audit. Do not combine extraction and prose generation
 in one pass.
 
-Read `references/house-style.md` before writing any prose, and
-`references/docx-mechanics.md` before touching the .docx.
+Read `references/house-style.md` before writing any prose,
+`references/docx-mechanics.md` before touching the .docx, and
+`references/transcripts.md` when a meeting transcript is supplied.
 
 ## Step 0 — Preflight the request and inputs
 
@@ -87,6 +88,10 @@ the current source exactly. Paraphrase only narrative material. Attach a source
 ID and location to every substantive row before polishing its prose. If the
 sources disagree, show the conflict; do not choose the more plausible version.
 
+A meeting tool's AI recap or summary is not a source: it is another model's
+reading of the meeting. A transcript is evidence of what was said, not of
+what was decided.
+
 ## Why the agency sections exist
 
 The agency reports (police, transport, housing, environment, town council,
@@ -114,6 +119,8 @@ for missing evidence only in the consolidated blocker list.
 | Meeting slide deck (PDF) | Agency and taskforce content, finance tables, dates |
 | Annexes (zip/PDFs) | Cross-references (municipal issues, outreach figures, grants) |
 | Secretary's own notes | Everything the deck cannot know — see "Gated items" |
+| Time-stamped markers (optional) | Which moments of a recording belong in the minutes |
+| Meeting transcript (optional, .vtt/.srt/.txt) | What was said and roughly when; never what was decided |
 
 ## Workflow
 
@@ -150,6 +157,11 @@ this step buries the problems inside fluent prose.
    from general-language probability.
 6. **Formatting**: run `scripts/lint_minutes.py` on last month's file to
    learn what already needs fixing.
+7. **Transcript** (only if one is supplied): follow
+   `references/transcripts.md` and run `scripts/transcript_windows.py`
+   with the secretary's markers. Only marker windows may feed the draft;
+   unmarked stretches go in the discrepancy list for the drafter to decide.
+   A `FAIL` blocks drafting from the transcript.
 
 Output as a short table: item, what was found, what the drafter must decide.
 
@@ -181,6 +193,9 @@ These cannot be derived from any file. Ask for them explicitly, and leave
   slide behind them
 - any handwritten name whose spelling is not certain
 - whose birthday celebration followed, if the house form mentions it
+- whether any recording was announced and agreed before it was made
+- who a transcript speaker label refers to
+- any decision or commitment heard only in a transcript, with no marker or note
 
 ### Phase 4 — Clean final
 
