@@ -20,11 +20,11 @@ needs_poppler = pytest.mark.skipif(
     reason='poppler-utils (pdftotext, pdfinfo) not installed')
 
 
-def run_script(name, *args, stdin=None):
+def run_script(name, *args, stdin=None, env=None):
     """Run one skill script as a subprocess, the way a user would."""
     return subprocess.run(
         [sys.executable, str(SCRIPTS / name)] + [str(a) for a in args],
-        input=stdin, capture_output=True, text=True, timeout=60)
+        input=stdin, capture_output=True, text=True, timeout=60, env=env)
 
 
 def lines(result):

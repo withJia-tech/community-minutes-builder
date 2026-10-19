@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
-"""Formatting and staleness linter for CCC minutes drafts.
+"""DOCX structure, terminology, placeholders, recency and formatting gate.
 
-    python lint_minutes.py draft.docx
-    python lint_minutes.py draft.docx --previous june.docx --period June --month July
-
-Report problems grouped by severity. Draft mode returns non-zero for errors.
-Final mode also treats warnings as a failed signature-ready gate.
+Final mode blocks structural defects, unresolved markers and warnings.
 """
 import argparse
 import hashlib
@@ -13,63 +9,62 @@ import json
 import re
 import sys
 import zipfile
-from lxml import etree
 
-W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+from lxml import etree
+from docx_layout import DocumentShapeError, W, load, minutes_rows
+
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
           'August', 'September', 'October', 'November', 'December']
 PLACEHOLDERS = [r'\[TBC\]', r'\[time\]', r'\[name[^\]]*\]', r'\[n\]',
                 r'\[to complete\]', r'\[TO BE COMPLETED[^\]]*\]', r'\bTBD\b']
-# A bracketed editorial note has four or more characters inside the brackets,
-# so a short citation such as [1] is not one. The placeholders above are
-# exempt here because they are already reported as placeholders.
 EDITORIAL_NOTE = r'\[[^\]]{4,}\]'
 NOTE_EXEMPT = r'\[(TBC|time|n)\]'
 
 
 def unresolved_markers(text):
-    """Return each placeholder or bracketed editorial note in text, in order.
-
-    These are the markers main() reports, gathered in one place so that other
-    gates (row_audit.py, the final-document hook) apply exactly the same rule.
-    A match that sits inside a longer match is reported once, as the longer.
-    """
     spans = set()
     for pat in PLACEHOLDERS:
         spans.update(m.span() for m in re.finditer(pat, text, re.I))
-    for m in re.finditer(EDITORIAL_NOTE, text):
-        if not re.match(NOTE_EXEMPT, m.group(0), re.I):
-            spans.add(m.span())
-    outer = [s for s in spans
-             if not any(o != s and o[0] <= s[0] and s[1] <= o[1] for o in spans)]
+    for match in re.finditer(EDITORIAL_NOTE, text):
+        if not re.match(NOTE_EXEMPT, match.group(0), re.I):
+            spans.add(match.span())
+    outer = [s for s in spans if not any(
+        o != s and o[0] <= s[0] and s[1] <= o[1] for o in spans)]
     return [text[a:b] for a, b in sorted(outer)]
 
 
-def load(path):
-    with zipfile.ZipFile(path) as z:
-        return etree.fromstring(z.read('word/document.xml'))
-
-
 def visible_text(path):
-    """Return text from all Word parts that can carry visible or review text."""
+    """Read text across runs and paragraphs while preserving word boundaries.
+
+    Word often splits a word across multiple runs. Runs are concatenated;
+    paragraphs receive a space to avoid merging adjacent unrelated words.
+    """
     parts = []
-    with zipfile.ZipFile(path) as z:
-        names = [n for n in z.namelist()
-                 if re.fullmatch(
-                     r'word/(document|header\d+|footer\d+|footnotes|endnotes|comments)\.xml',
-                     n)]
-        for name in names:
-            root = etree.fromstring(z.read(name))
-            text = ' '.join((t.text or '').strip() for t in root.iter(W + 't'))
-            parts.append('%s\n%s' % (name, text))
+    try:
+        with zipfile.ZipFile(path) as archive:
+            names = [name for name in archive.namelist() if re.fullmatch(
+                r'word/(document|header\d+|footer\d+|footnotes|endnotes|comments)\.xml',
+                name)]
+            if 'word/document.xml' not in names:
+                raise DocumentShapeError('DOCX is missing word/document.xml')
+            for name in names:
+                root = etree.fromstring(archive.read(name), parser=etree.XMLParser(
+                    resolve_entities=False, no_network=True))
+                paragraphs = []
+                for para in root.iter(W + 'p'):
+                    paragraphs.append(''.join(t.text or '' for t in para.iter(W + 't')))
+                # Important: do not join separate runs with spaces.
+                parts.append(name + '\n' + ' '.join(paragraphs))
+    except (OSError, KeyError, zipfile.BadZipFile, etree.XMLSyntaxError) as exc:
+        raise DocumentShapeError('unreadable DOCX text: %s' % exc) from exc
     return '\n'.join(parts)
 
 
 def load_profile(path):
     if not path:
         return {}
-    with open(path, encoding='utf-8') as f:
-        profile = json.load(f)
+    with open(path, encoding='utf-8') as fh:
+        profile = json.load(fh)
     if not isinstance(profile, dict):
         raise ValueError('profile must be a JSON object')
     return profile
@@ -77,24 +72,16 @@ def load_profile(path):
 
 def media(path):
     out = {}
-    with zipfile.ZipFile(path) as z:
-        for n in z.namelist():
-            if n.startswith('word/media/'):
-                out[n] = hashlib.sha256(z.read(n)).hexdigest()
+    with zipfile.ZipFile(path) as archive:
+        for name in archive.namelist():
+            if name.startswith('word/media/'):
+                out[name] = hashlib.sha256(archive.read(name)).hexdigest()
     return out
 
 
 def rows(root):
-    """Yield (number, text, action) for every row of the numbered-item table."""
-    tables = root.find(W + 'body').findall(W + 'tbl')
-    if len(tables) < 2:
-        return
-    for tr in tables[-1].findall(W + 'tr'):
-        cells = tr.findall(W + 'tc')
-        if len(cells) < 3:
-            continue
-        vals = [''.join(t.text or '' for t in c.iter(W + 't')) for c in cells]
-        yield vals[0].strip(), vals[1], vals[2].strip()
+    for item in minutes_rows(root):
+        yield item.number, item.content, item.action
 
 
 def para_stats(root):
@@ -103,55 +90,95 @@ def para_stats(root):
         paras = tc.findall(W + 'p')
         if len(paras) < 2:
             continue
-        for p in paras:
-            has_img = (p.find('.//' + W + 'drawing') is not None
-                       or p.find('.//' + W + 'pict') is not None)
-            txt = ''.join(t.text or '' for t in p.iter(W + 't')).strip()
-            if not txt and not has_img:
+        for para in paras:
+            has_image = (para.find('.//' + W + 'drawing') is not None or
+                         para.find('.//' + W + 'pict') is not None)
+            txt = ''.join(t.text or '' for t in para.iter(W + 't')).strip()
+            if not txt and not has_image:
                 empty += 1
     return empty
 
 
-def main():
+def _first_body_mention(rows, name):
+    """Locate the first substantive mention, ignoring the attendance roster."""
+    regex = re.compile(r'(?<!\w)%s(?!\w)' % re.escape(name), re.I)
+    for row in rows:
+        match = regex.search(row.content)
+        if match:
+            # Return the same row, so a title in the attendance table or an
+            # unrelated neighbouring row cannot satisfy this person's title.
+            return row.number, row.content, match
+    return None
+
+
+def _title_near_mention(content, match, titles):
+    # Titles must directly precede the name (allow punctuation/whitespace),
+    # not appear incidentally anywhere within a broad character window.
+    prefix = content[:match.start()]
+    return any(re.search(r'(?<!\w)%s[\s,.:;-]*$' % re.escape(str(title)),
+                         prefix, re.I) for title in titles if str(title).strip())
+
+
+def _stale_period_mentions(full, period, meeting_month, report_year):
+    """Produce warning messages for earlier reported periods (including Dec→Jan)."""
+    if period not in MONTHS:
+        return []
+    if meeting_month and meeting_month not in MONTHS:
+        return []
+    messages = []
+    pat = r'\b(%s)\s+(20\d{2})\b' % '|'.join(MONTHS)
+    found = {(m.group(1), int(m.group(2))) for m in re.finditer(pat, full)}
+    for month, year in sorted(found, key=lambda x: (x[1], MONTHS.index(x[0]))):
+        if report_year is not None:
+            if (year, MONTHS.index(month)) >= (report_year, MONTHS.index(period)):
+                continue
+        elif MONTHS.index(month) >= MONTHS.index(period):
+            continue
+        # A historic month/year is not proof of stale data; require review.
+        messages.append('%s %s appears in the document — confirm it is a deliberate '
+                        'historical reference and not stale %s data' % (
+                            month, year, period))
+    return messages
+
+
+def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('docx')
-    ap.add_argument('--previous', help='previous month\'s minutes, for image comparison')
-    ap.add_argument('--period', help='month the minutes report on, e.g. June')
-    ap.add_argument('--month', help='month of the meeting itself, e.g. July')
-    ap.add_argument('--profile', help='JSON file of approved terms, names and titles')
-    ap.add_argument('--final', action='store_true',
-                    help='treat placeholders, profile violations and warnings as final-gate failures')
-    a = ap.parse_args()
+    ap.add_argument('--previous', help='previous approved minutes')
+    ap.add_argument('--period', help='reporting period month, e.g. January')
+    ap.add_argument('--month', help='meeting month, e.g. February')
+    ap.add_argument('--report-year', type=int, help='reporting year (required for Dec→Jan detection)')
+    ap.add_argument('--profile', help='approved names, terms and titles JSON')
+    ap.add_argument('--final', action='store_true')
+    a = ap.parse_args(argv)
 
-    root = load(a.docx)
-    body_rows = list(rows(root))
-    full = visible_text(a.docx)
-    profile = load_profile(a.profile)
+    try:
+        root = load(a.docx)
+        body_rows = minutes_rows(root)
+        full = visible_text(a.docx)
+        profile = load_profile(a.profile)
+    except (DocumentShapeError, OSError, ValueError, json.JSONDecodeError) as exc:
+        print('ERROR  %s' % exc)
+        return 1
     errors, warnings, notes = [], [], []
 
-    # placeholders across the entire Word package, not only the minutes table
     for pat in PLACEHOLDERS:
         hits = list(re.finditer(pat, full, re.I))
         if hits:
             msg = 'document carries %d placeholder(s) matching %r' % (
                 len(hits), hits[0].group(0))
             (errors if a.final else warnings).append(msg)
-
-    # bracketed editorial notes
-    for m in re.finditer(EDITORIAL_NOTE, full):
-        if not re.match(NOTE_EXEMPT, m.group(0), re.I):
-            msg = 'document carries a possible editorial note: %s' % m.group(0)[:70]
+    for hit in re.finditer(EDITORIAL_NOTE, full):
+        if not re.match(NOTE_EXEMPT, hit.group(0), re.I):
+            msg = 'document carries a possible editorial note: %s' % hit.group(0)[:70]
             (errors if a.final else notes).append(msg)
 
-    # deterministic wording, spelling and title checks from an approved profile
     replacements = profile.get('term_replacements', {})
     if not isinstance(replacements, dict):
         errors.append('profile term_replacements must be an object')
         replacements = {}
     for wrong, right in replacements.items():
-        # whole-term match, the same boundary as the alias check below, so a
-        # rule for "NEA" does not fire on "near"
-        if wrong and re.search(r'(?<!\w)%s(?!\w)' % re.escape(wrong), full, re.I):
+        if wrong and re.search(r'(?<!\w)%s(?!\w)' % re.escape(str(wrong)), full, re.I):
             msg = 'unapproved term or spelling %r; approved form is %r' % (wrong, right)
             (errors if a.final else warnings).append(msg)
 
@@ -166,48 +193,32 @@ def main():
         name = str(person['name'])
         aliases = person.get('aliases', [])
         titles = person.get('titles', [])
+        if not isinstance(aliases, list) or not isinstance(titles, list):
+            errors.append('aliases and titles must be lists for %s' % name)
+            continue
         for alias in aliases:
             if alias and re.search(r'(?<!\w)%s(?!\w)' % re.escape(str(alias)), full, re.I):
                 msg = 'unapproved name spelling %r; canonical name is %r' % (alias, name)
                 (errors if a.final else warnings).append(msg)
-        hit = re.search(r'(?<!\w)%s(?!\w)' % re.escape(name), full, re.I)
-        if hit and titles:
-            context = full[max(0, hit.start() - 160):hit.end() + 80]
-            if not any(re.search(re.escape(str(title)), context, re.I)
-                       for title in titles):
-                msg = '%r appears without an approved nearby title (%s)' % (
-                    name, ', '.join(map(str, titles)))
-                (errors if a.final else warnings).append(msg)
+        first = _first_body_mention(body_rows, name)
+        if first and titles and not _title_near_mention(first[1], first[2], titles):
+            msg = '%r first appears in minutes row %s without an approved title (%s)' % (
+                name, first[0], ', '.join(map(str, titles)))
+            (errors if a.final else warnings).append(msg)
 
     for m in re.finditer(r'\b([A-Za-z]{2,})\s+\1\b', full, re.I):
         warnings.append('possible duplicated word %r' % m.group(0))
-
-    # empty spacer paragraphs
     n_empty = para_stats(root)
     if n_empty:
         warnings.append('%d empty paragraph(s) inside table cells — these show '
                         'as gaps in the rendered document' % n_empty)
 
-    # stale months
-    if a.period:
-        stale = [m for m in MONTHS
-                 if m != a.period and m != (a.month or '')
-                 and re.search(r'\b%s 20\d\d\b' % m, full)]
-        # only complain about months earlier than the reporting period
-        if a.period in MONTHS:
-            idx = MONTHS.index(a.period)
-            earlier = [m for m in stale if MONTHS.index(m) < idx]
-            for m in earlier:
-                warnings.append('%s appears in the body — confirm it is a '
-                                'deliberate carry-forward and not a figure that '
-                                'should have been refreshed to %s'
-                                % (m, a.period))
-
-    # "as at" dates
-    for num, text, _ in body_rows:
-        for m in re.finditer(r'as at ([^),.]{4,30})', text, re.I):
-            notes.append('row %s says "as at %s" — confirm the date moved'
-                         % (num or '?', m.group(1).strip()))
+    warnings.extend(_stale_period_mentions(full, a.period, a.month, a.report_year))
+    for item in body_rows:
+        for m in re.finditer(r'as at ([^),.]{4,30})', item.content, re.I):
+            (warnings if a.final else notes).append(
+                'row %s says "as at %s" — confirm the date moved' %
+                (item.number, m.group(1).strip()))
 
     # action column tags naming an agency absent from the row. The agencies
     # differ by committee, so the list comes from the profile; with no
@@ -218,33 +229,33 @@ def main():
         action_tags = []
     action_pattern = (r'\b(%s)\b' % '|'.join(
         re.escape(str(tag)) for tag in action_tags if str(tag))) if action_tags else None
-    for num, text, action in body_rows:
-        for tag in re.findall(action_pattern, action) if action_pattern else []:
-            if tag not in text:
+    for item in body_rows:
+        for tag in re.findall(action_pattern, item.action) if action_pattern else []:
+            if tag not in item.content:
                 warnings.append('row %s action column is tagged %s but the row '
-                                'does not mention %s — likely carried over'
-                                % (num or '?', tag, tag))
+                                'does not mention %s — likely carried over' %
+                                (item.number, tag, tag))
 
-    # unchanged images
     if a.previous:
-        now, before = media(a.docx), media(a.previous)
-        same = [k for k, v in now.items() if before.get(k) == v]
-        # letterhead is expected to be identical; table images are not
-        if len(same) > 1:
+        try:
+            before, now = media(a.previous), media(a.docx)
+        except (OSError, zipfile.BadZipFile) as exc:
+            print('ERROR  cannot check previous file media: %s' % exc)
+            return 1
+        common = [name for name, digest in now.items() if before.get(name) == digest]
+        if len(common) > 1:
             warnings.append('%d embedded image(s) are byte-identical to the '
-                            'previous minutes — check the finance and grant '
-                            'tables were actually replaced' % len(same))
+                            'previous minutes — check finance and grant tables' % len(common))
 
-    # numbering continuity
-    seen = [n for n, _, _ in body_rows if re.fullmatch(r'\d+', n or '')]
-    expected = [str(i) for i in range(1, len(seen) + 1)]
-    if seen != expected:
-        warnings.append('top-level numbering is %s — expected %s'
-                        % (', '.join(seen), ', '.join(expected)))
+    top_levels = [r.number for r in body_rows if re.fullmatch(r'\d+', r.number)]
+    expected = [str(index) for index in range(1, len(top_levels) + 1)]
+    if top_levels != expected:
+        warnings.append('top-level numbering is %s — expected %s' %
+                        (', '.join(top_levels), ', '.join(expected)))
 
-    for label, items in (('ERROR', errors), ('WARN', warnings), ('NOTE', notes)):
-        for i in items:
-            print('%-6s %s' % (label, i))
+    for label, entries in (('ERROR', errors), ('WARN', warnings), ('NOTE', notes)):
+        for entry in entries:
+            print('%-6s %s' % (label, entry))
     if not (errors or warnings or notes):
         print('OK     nothing flagged')
     return 1 if errors or (a.final and warnings) else 0

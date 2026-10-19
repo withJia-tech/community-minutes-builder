@@ -1,9 +1,39 @@
-__pycache__/
-.pytest_cache/
-*.pyc
-.DS_Store
+# Never version real minutes, attendance sheets, images or unpacked signatures.
+**/workspace/
+**/unpacked/
+**/preview_*.png
+**/output/
+**/outputs/
+**/deliverables/
+**/final*.docx
+**/~$*
 *.docx
+*.doc
 *.pdf
 *.zip
-!skills/*/references/**/*.pdf
-workspace/
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+*.bmp
+*.heic
+**/attendance*.json
+**/row-sources*.json
+**/committee-profile*.json
+# Checked-in synthetic fixtures are allowed explicitly.
+!tests/fixtures/attendance.json
+!tests/fixtures/row-sources.json
+!tests/fixtures/committee-profile.json
+# Python and IDE state
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+*.pyc
+.DS_Store
+.env
+.env.*
+!.env.example

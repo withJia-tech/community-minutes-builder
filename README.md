@@ -13,8 +13,9 @@ secretary's notes, it helps produce:
 2. a discrepancy report; and
 3. a row-by-row source audit.
 
-The current release focuses on a modest standard: do not return `PASS` while a
-known attendance, source, recency, terminology or formatting conflict remains.
+This is a developer-preview implementation of evidence and formatting gates.
+A script `PASS` is not committee approval, and unsupported Word layouts are
+blocked rather than being mistaken for clean records.
 
 ## How it runs
 
@@ -102,9 +103,11 @@ On Claude Code 2.1.275 or later, one line does both:
 /plugin install ccc-minutes-builder --marketplace withJia-tech/community-minutes-builder
 ```
 
-The plugin adds the skill and the final-document hook described below.
+The plugin adds the skill and final-document hook; it does **not** install
+Python packages, Poppler or an Office renderer. Install these separately
+in a host where running local scripts is permitted.
 
-### Manual upload (any workspace that accepts a skill zip)
+### Manual skill upload (only workspaces with the required local tooling)
 
 Zip the skill folder itself, so the archive contains a top-level
 `ccc-minutes-builder/` folder with `SKILL.md` inside:
@@ -115,6 +118,27 @@ cd skills && zip -r ccc-minutes-builder.zip ccc-minutes-builder -x '*/__pycache_
 
 A manual upload gives you the skill but not the hook, so run the Phase 4
 checks yourself before calling a document final.
+
+## Runtime dependencies and preflight
+
+Python 3.10+ and Poppler (`pdfinfo`, `pdftotext`, `pdftoppm`) are required.
+Install the Python dependencies from a checked-out repository:
+
+```bash
+python -m pip install -r requirements.txt
+python skills/ccc-minutes-builder/scripts/preflight.py
+```
+
+Pillow is required for slide image swaps. The `--render` preflight option also
+requires LibreOffice `soffice` for optional document visual QA. A manual skill
+ZIP contains instructions/scripts only: consumers must install the equivalent
+runtime separately. Workspaces without a Python execution environment cannot
+run the deterministic gates and must not claim a signature-ready pass.
+
+The scripts assume the documented attendance and numbered-minutes tables.
+If the document structure differs, the system fails closed for human review.
+Synthetic test examples of evidence and source-map JSON live in
+[`tests/fixtures/`](tests/fixtures/); do **not** put real roster data there.
 
 ## Quick start
 
@@ -141,7 +165,7 @@ python scripts/attendance_audit.py draft.docx \
 # Check placeholders, dates, terms, names, titles and document structure
 python scripts/lint_minutes.py draft.docx \
   --previous previous.docx \
-  --period June --month July \
+  --period January --month February --report-year 2026 \
   --profile committee-profile.json \
   --final
 
@@ -156,33 +180,24 @@ Each final check returns a non-zero exit status when a blocking condition
 remains. This makes the checks usable in a repeatable workflow rather than only
 as instructions to the model.
 
-## The hook enforces Phase 4
+## Final-document hook: a scoped, fail-closed safeguard
 
-Phase 4 of the skill says nothing bracketed reaches the Chairman for
-signature. The plugin turns that rule into a check that runs on its own,
-whether or not the model remembers it.
+The plugin's `PostToolUse` command checks `final*.docx` files in the **current
+working directory only** by default, including mixed-case filenames. Set
+`CCC_MINUTES_OUTPUT_DIR` to a dedicated output folder (absolute path, or
+relative to the hook's working directory) when final files live elsewhere.
+It does not recursively inspect the entire repository or unrelated work.
 
-After every shell command Claude runs, a `PostToolUse` hook
-(`plugins/ccc-minutes-builder/hooks/hooks.json`) runs
-`scripts/check_final_docx.py`. It looks in the working folder for Word files
-whose name starts with `final` (`final*.docx`, any case) and reads their
-visible text: body, tables, headers, footers, footnotes, endnotes and
-comments. If one still carries `[TBC]`, `[time]`, `TBD`, a `[name …]`
-placeholder or a bracketed editorial note, the hook exits with code 2 and
-Claude Code passes the file name and the markers straight back to Claude.
-The hook runs after the command, so it cannot undo the file being written,
-but a final that still carries a marker cannot pass unnoticed: Claude has to
-resolve the markers with the drafter or leave the document as a draft.
+If a final file is corrupt, has an unsupported document shape, or contains
+unresolved placeholders, the hook returns exit code `2` and reports the
+failure. Invalid hook JSON, an invalid folder, or missing runtime packages
+also fail closed. Drafts are left alone. The check runs **after** a shell
+operation, so exit code `2` warns the host but does not undo or delete a file.
 
-The hook is deliberately narrow:
-
-- **Only finals.** Drafts carry `[TBC]` legitimately until Phase 4, so a file
-  named `draft.docx` is never checked.
-- **Only known markers.** It uses the same patterns as `lint_minutes.py`. A
-  short bracket such as the citation `[1]` does not count.
-- **Fails open.** Unreadable input, a missing `lxml` or a damaged file prints
-  a note and lets work continue. The hook guards the signature step; it is
-  not a replacement for running the linter with `--final`.
+This is only a marker and structural safeguard. It does **not** certify
+attendance, source maps, factual accuracy or committee approval. Always run
+`attendance_audit.py`, `lint_minutes.py --final`, and `row_audit.py
+--source-map` independently before manual signature review.
 
 ## Fork and tailor
 
@@ -258,36 +273,24 @@ Current technical limitations are also visible:
 
 ## Validation status
 
-The test suite in `tests/` generates small synthetic Word and PDF files and
-runs each script the way a user would, checking exit codes and exact output
-lines. CI is set up to run it on Python 3.10–3.12 for every pull request and
-every push to `main`. The tests show that:
+The original synthetic test suite is supplemented with release-gate tests
+covering unconfirmed slide suggestions, unsupported table layouts, duplicate
+and unnumbered rows, damaged DOCX packages, first substantive title mentions,
+split Word runs, nested tables, image paths/temp cleanup and cross-year dates.
+`python-docx`-generated Word-compatible documents are exercised; **actual
+Microsoft Word-produced documents have not been certified** unless separately
+reported. See [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) for the gates that
+must pass before a release is tagged. CI tests Python 3.10–3.12 and validates
+Claude Code plugin metadata. CI evidence is pending until it has run against
+the exact candidate commit.
 
-- the attendance audit passes a clean match and blocks a wrong category or
-  title, naming the person;
-- the linter passes a clean draft and flags placeholders (a warning in draft
-  mode, an error with `--final`), unapproved name spellings and duplicated
-  words;
-- the row audit blocks a row with no confirmed source or with an unresolved
-  marker, suggests a deck slide for a matching row and lists slides that no
-  row covers;
-- the hook blocks a `final*.docx` that still carries a marker, and leaves
-  drafts, citations such as `[1]` and unreadable input alone;
-- the example committee profile is valid and runs through the linter;
-- action tags are checked only when the profile lists them;
-- the plugin's manifests, skill paths and hook paths resolve, and no symlink
-  loops back into the plugin; and
-- the four failures in [`research/failures.md`](research/failures.md) stay
-  fixed, each pinned by a regression test and a true-positive test.
-
-The marketplace manifest also passes `claude plugin validate . --strict`,
-checked locally rather than in CI.
-
-These are small invented cases in the established table layout. They do not
-establish reliability across every committee template, scan quality or Word
-layout, and they say nothing about the quality of model-drafted prose. Every
-entry in the failures log so far comes from synthetic stress tests, not real
-meetings.
+Further tests confirm that the example committee profile is valid and runs
+through the linter, and that action tags are checked only when the profile
+lists them. The plugin's manifests, skill paths and hook paths resolve, and no
+symlink loops back into the plugin. The failures in
+[`research/failures.md`](research/failures.md) stay fixed, each pinned by a
+regression test. Every entry in the failures log so far comes from synthetic
+stress tests, not real meetings.
 
 ## Repository structure
 
@@ -295,7 +298,12 @@ meetings.
 community-minutes-builder/
 ├── README.md
 ├── LICENSE
-├── requirements-dev.txt          # lxml, pytest
+├── requirements.txt              # lxml, Pillow runtime
+├── requirements-dev.txt          # pytest, python-docx test runtime
+├── CONTRIBUTING.md              # MIT contributions policy
+├── THIRD_PARTY_NOTICES.md       # dependency attribution
+├── RELEASE_CHECKLIST.md         # mandatory release gates
+├── SECURITY.md                  # meeting-data handling
 ├── .claude-plugin/
 │   └── marketplace.json          # lists the plugin below
 ├── .github/workflows/ci.yml      # py_compile + pytest on Python 3.10–3.12
@@ -308,6 +316,8 @@ community-minutes-builder/
 │       │   ├── house-style.md
 │       │   └── docx-mechanics.md
 │       └── scripts/
+│           ├── docx_layout.py      # shared fail-closed document shape
+│           ├── preflight.py        # runtime dependency check
 │           ├── attendance_audit.py
 │           ├── check_final_docx.py   # the Phase 4 hook
 │           ├── lint_minutes.py
@@ -341,21 +351,37 @@ pip install -r requirements-dev.txt
 python -m pytest tests/ -v
 ```
 
-The deck tests need Poppler (`pdfinfo`, `pdftotext`) and are skipped when it
-is not installed. The `.docx` and `.pdf` fixtures are generated into a
+The Poppler tests require `pdfinfo` and `pdftotext`. CI installs Poppler,
+so skipped slide tests are not treated as a sufficient release gate. The `.docx` and `.pdf` fixtures are generated into a
 temporary folder at test time by `tests/fixtures/build.py`, so the
 repository's rule against committing Word and PDF files stays intact.
 
-## Privacy
+## Privacy and affiliation
+
+This is an **independent, unofficial** community project. It is not
+affiliated with, endorsed by, sponsored by, or approved by any CCC,
+grassroots organisation, government agency, or AI model provider.
+Official minutes require authorised review and approval.
+
 
 Do not commit real minutes, attendance sheets, signatures, personal data or
-other meeting records to this public repository. Use synthetic or fully
+other meeting records to this public repository. Use an ignored
+`workspace/` directory for live inputs, unpacked DOCX packages, temporary
+renderings and previews. See [`SECURITY.md`](SECURITY.md). Use synthetic or fully
 sanitised fixtures for testing.
 
 Users remain responsible for applying their organisation's information-
 handling requirements within the AI workspace they choose.
 
-## Contributing
+## Contributing and licensing
+
+Contributions are accepted under MIT with no copyright assignment; see
+[`CONTRIBUTING.md`](CONTRIBUTING.md). Dependency licences and attributions
+are summarised in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+**Before release, confirm the actual rights holder** and complete the
+`LICENSE` copyright line. The GitHub handle `withJia-tech` does not
+by itself establish legal ownership. See the release checklist.
+
 
 The repository is intended to improve through observed failure cases. A useful
 contribution should make one behaviour clearer, more repeatable or easier to
@@ -377,7 +403,7 @@ receive subsequent changes.
 
 ## Status
 
-This is an early working release. It is intended to assist a human
+This is a developer preview pending release verification. It is intended to assist a human
 secretariat, not replace review, approval or signature. The next improvements
 should follow real use: record the failure, make the smallest useful control,
 and test it again.

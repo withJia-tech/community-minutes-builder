@@ -17,21 +17,37 @@ jobs:
         python-version: ['3.10', '3.11', '3.12']
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
-      - name: Install Poppler (pdfinfo, pdftotext)
+      - name: Install Poppler
         run: |
           sudo apt-get update
           sudo apt-get install -y poppler-utils
-
-      - name: Install test dependencies
-        run: pip install -r requirements-dev.txt
-
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Check dependency consistency and runtime availability
+        run: |
+          python -m pip check
+          python skills/ccc-minutes-builder/scripts/preflight.py
       - name: Compile scripts
-        run: python -m py_compile skills/ccc-minutes-builder/scripts/*.py
-
-      - name: Run tests
+        run: python -m compileall -q skills/ccc-minutes-builder/scripts
+      - name: Run regression tests
         run: python -m pytest tests/ -v
+      - name: Check privacy ignore rules
+        run: |
+          git check-ignore -q unpacked/word/media/signature.png
+          git check-ignore -q workspace/attendance-real.json
+          git check-ignore -q preview_rId5.png
+
+  plugin-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Validate packaged plugin manifests
+        run: claude plugin validate . --strict

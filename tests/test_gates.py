@@ -132,13 +132,13 @@ def test_row_audit_deck_suggests_slide_and_lists_unmatched(tmp_path, docs):
     r = run_script('row_audit.py', docs['draft'], '--deck', docs['deck'],
                    '--source-map', sources)
     out = lines(r)
-    assert r.returncode == 0, r.stdout
+    assert r.returncode == 1, r.stdout
     row2 = [line for line in out if line.startswith('| 2 |')]
     assert len(row2) == 1 and '| Deck slide 1 |' in row2[0], r.stdout
     assert ('Slides with no matching row — confirm each was either covered '
             'elsewhere or genuinely not tabled: 2') in out
-    assert 'OVERALL VERDICT: PASS WITH WARNINGS' in out
-    assert 'WARN     row 2 has only an automated source suggestion' in out
+    assert 'OVERALL VERDICT: FAIL' in out
+    assert 'BLOCKER  row 2 has no confirmed source' in out
 
 
 # --- regression tests: research/failures.md --------------------------------------

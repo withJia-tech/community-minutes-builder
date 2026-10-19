@@ -1,95 +1,82 @@
 #!/usr/bin/env python3
-"""Claude Code hook: nothing bracketed reaches the Chairman.
+"""Fail-closed guard for final*.docx in the designated output directory.
 
-The plugin runs this after every Bash tool call (PostToolUse). It reads the
-hook payload from stdin, takes the working folder from its `cwd`, and looks
-there for Word files named final*.docx. Each one is checked with
-lint_minutes.unresolved_markers(): the same [TBC], [time], TBD and bracketed
-editorial-note patterns the linter reports. A citation such as [1] is not a
-marker.
+This PostToolUse check runs after a shell operation, so it cannot undo a
+write. It rejects invalid inputs or unverifiable final files; it does not
+replace attendance or source-map audit and does not certify document content.
 
-Exit 2 when a final still carries a marker. Claude Code sends the stderr
-message back to Claude, so the final cannot quietly go out for signature.
-Exit 0 otherwise. Drafts are never checked: they carry [TBC] legitimately
-until Phase 4.
-
-The hook fails open. Bad input, a missing lxml or an unreadable file prints a
-note and exits 0, so a broken check never blocks unrelated work.
-
-Try it by hand:
-
-    echo '{"cwd": "."}' | python3 check_final_docx.py; echo $?
+By default only final*.docx immediately under the hook cwd are checked.
+Set CCC_MINUTES_OUTPUT_DIR to a dedicated output directory when outputs live
+elsewhere. This prevents stale files in unrelated subtrees from blocking work.
 """
 import fnmatch
 import json
 import os
+from pathlib import Path
 import sys
-
-SKIP_DIRS = {'node_modules', '__pycache__', 'unpacked'}
 
 
 def note(message):
     print('check_final_docx: %s' % message, file=sys.stderr)
 
 
-def find_finals(root):
-    """Yield every final*.docx under root, skipping tool and dot folders."""
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(d for d in dirnames
-                             if not d.startswith('.') and d not in SKIP_DIRS)
-        for name in sorted(filenames):
-            if fnmatch.fnmatch(name.lower(), 'final*.docx'):
-                yield os.path.join(dirpath, name)
+def find_finals(directory):
+    """Find only top-level final files; no recursive project-wide traversal."""
+    return sorted(path for path in directory.iterdir() if path.is_file() and
+                  fnmatch.fnmatch(path.name.lower(), 'final*.docx'))
 
 
 def main():
     try:
         payload = json.load(sys.stdin)
-    except ValueError as exc:
-        note('could not read the hook input as JSON (%s); skipping' % exc)
-        return 0
-    if not isinstance(payload, dict):
-        note('hook input is not a JSON object; skipping')
-        return 0
-    cwd = payload.get('cwd') or os.getcwd()
-    if not isinstance(cwd, str) or not os.path.isdir(cwd):
-        note('working folder %r not found; skipping' % (cwd,))
-        return 0
+        if not isinstance(payload, dict):
+            raise ValueError('hook payload must be a JSON object')
+        cwd = payload.get('cwd')
+        if not isinstance(cwd, str) or not cwd.strip():
+            raise ValueError('hook payload must include a working directory')
+        base = Path(cwd).resolve(strict=True)
+        if not base.is_dir():
+            raise ValueError('hook cwd is not a directory')
+        configured = os.environ.get('CCC_MINUTES_OUTPUT_DIR')
+        target = ((base / configured).resolve(strict=True) if configured and
+                  not os.path.isabs(configured) else
+                  Path(configured).resolve(strict=True) if configured else base)
+        if not target.is_dir():
+            raise ValueError('output directory is not a directory')
+        finals = find_finals(target)
+    except (OSError, ValueError, TypeError) as exc:
+        note('cannot establish final-document scope: %s' % exc)
+        return 2
 
-    finals = list(find_finals(cwd))
     if not finals:
         return 0
-
     try:
+        from docx_layout import load, minutes_rows
         from lint_minutes import unresolved_markers, visible_text
     except ImportError as exc:
-        note('cannot load lint_minutes (%s); skipping' % exc)
-        return 0
+        note('validation is unavailable (%s); final-document gate BLOCKED' % exc)
+        return 2
 
     problems = []
     for path in finals:
         try:
+            minutes_rows(load(path))
             markers = unresolved_markers(visible_text(path))
-        except Exception as exc:  # fail open: an unreadable file is not a verdict
-            note('could not read %s (%s); skipping' % (path, exc))
+        except Exception as exc:
+            problems.append((path.name, 'cannot validate DOCX: %s' % exc))
             continue
         if markers:
-            problems.append((os.path.relpath(path, cwd), markers))
+            problems.append((path.name, 'unresolved markers: %s' % ', '.join(markers[:10])))
 
-    if not problems:
-        return 0
-    print('Nothing bracketed reaches the Chairman: these final minutes still '
-          'carry unresolved markers.', file=sys.stderr)
-    for path, markers in problems:
-        shown = ', '.join(markers[:10])
-        if len(markers) > 10:
-            shown += ', and %d more' % (len(markers) - 10)
-        print('  %s: %s' % (path, shown), file=sys.stderr)
-    print('Resolve each item with the drafter and then remove its marker, or '
-          'leave the document as a draft (not named final*.docx) with the '
-          'blocker named. Never delete a marker only to pass this check '
-          '(SKILL.md, Phase 4).', file=sys.stderr)
-    return 2
+    if problems:
+        note('final-document gate FAILED; do not send these files for signature:')
+        for filename, why in problems:
+            note('  %s — %s' % (filename, why))
+        note('Fix the underlying evidence or keep the document as a draft. '
+             'Run attendance_audit.py, lint_minutes.py --final, and '
+             'row_audit.py --source-map separately.')
+        return 2
+    return 0
 
 
 if __name__ == '__main__':
