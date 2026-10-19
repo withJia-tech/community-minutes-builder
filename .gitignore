@@ -21,10 +21,25 @@
 **/attendance*.json
 **/row-sources*.json
 **/committee-profile*.json
+# Meeting recordings, transcripts and secretary's markers.
+*.vtt
+*.srt
+*.m4a
+*.mp3
+*.wav
+*.aac
+*.ogg
+*.mp4
+*.mov
+**/transcript*.txt
+**/markers*.txt
 # Checked-in synthetic fixtures are allowed explicitly.
 !tests/fixtures/attendance.json
 !tests/fixtures/row-sources.json
 !tests/fixtures/committee-profile.json
+!tests/fixtures/transcript.vtt
+!tests/fixtures/transcript.txt
+!tests/fixtures/markers.txt
 # Python and IDE state
 __pycache__/
 .pytest_cache/
