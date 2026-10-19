@@ -1,13 +1,14 @@
-# community-minutes-builder
+# Community Minutes Builder
 
+A polished draft is not necessarily an accurate record. Reusing last month's
+minutes saves formatting time, but it also makes it easy to carry forward
+outdated figures, attendance, titles and unresolved actions.
 
-The first version of this skill began with a recurring secretariat problem:
-last month's minutes are the easiest document to reuse, but they are also the
-easiest place for an old figure, title or status to survive unnoticed.
-
-CCC Minutes Builder adds a checking workflow around that reuse. Given the
-previous approved minutes, current attendance sheet, meeting deck and
-secretary's notes, it helps produce:
+Community Minutes Builder is a public, forkable Claude Code skill
+(`ccc-minutes-builder`) that combines AI-assisted drafting with
+deterministic checks and human approval. Given the previous approved
+minutes, current attendance sheet, meeting deck and secretary's notes, it
+helps produce:
 
 1. a formatted Word draft;
 2. a discrepancy report; and
@@ -27,31 +28,39 @@ It is not a separate website or document portal. The project does not operate
 an additional service for uploading meeting records or downloading completed
 minutes. This repository holds the skill and its supporting checks.
 
-## Current workflow
+## From source documents to reviewable minutes
 
-```text
-Source records
-→ extract facts
-→ reconcile attendance and reporting periods
-→ draft from confirmed evidence
-→ run deterministic checks
-→ render and inspect
-→ PASS / PASS WITH WARNINGS / FAIL
+```mermaid
+flowchart LR
+    A[Current records<br/>Attendance, slides, notes] --> B[Extract and reconcile]
+    P[Previous approved minutes<br/>Layout and open actions] --> B
+    B --> C[AI-assisted draft<br/>From confirmed evidence only]
+    C --> D{Deterministic gates}
+    D --> E[Attendance and titles]
+    D --> F[Row-level source map]
+    D --> G[Dates, placeholders<br/>and document structure]
+    E --> H{Any blockers?}
+    F --> H
+    G --> H
+    H -->|Yes| I[Discrepancy report<br/>Human clarification]
+    I --> C
+    H -->|No| J[Render and inspect]
+    J --> K[Human approval<br/>Final minutes]
 ```
 
-The model is used for extraction, restrained summarisation and drafting. The
-scripts handle checks that can be made more explicit and repeatable.
+## The distinction that matters
 
-### Where each kind of judgement sits
+| AI helps with | Code verifies | Humans decide |
+|---|---|---|
+| Extracting and summarising records | Attendance against confirmed evidence | Unclear handwriting and conflicting sources |
+| Drafting restrained prose | Approved names, titles and terms | Whether an issue was actually discussed |
+| Suggesting slide-to-row matches | A confirmed source citation for each substantive row | Whether the record is ready for approval |
+| Identifying possible carry-forwards | Placeholders, dates, numbering and document shape | Final sign-off |
 
-| Layer | Current role |
-|---|---|
-| Model-assisted | Interpret the request, classify source roles, read meeting material, propose source matches and draft restrained prose. |
-| Deterministic scripts | Compare attendance records, enforce approved spellings and titles, detect placeholders and stale artefacts, and fail rows without confirmed sources. |
-| Human secretariat | Resolve uncertain handwriting, conflicting evidence, unrecorded discussion and final approval. |
-
-A model-suggested source match is not treated as confirmed evidence. It becomes
-confirmed only when it is recorded in the row source map.
+A suggested source is not a confirmed source: a match counts only once it is
+recorded in the row source map. Missing evidence blocks the final; drafts
+mark it `[TBC]` so it stays visible instead of being filled with a
+plausible guess.
 
 ## Checks included today
 
@@ -213,10 +222,12 @@ any script.
    - `action_tags`: the agency tags used in your action column (leave the key
      out to skip that check; there is no built-in list).
 3. Pass it with `--profile` as shown in "Run the checks directly".
-4. Edit `references/house-style.md` and the wording in `SKILL.md` to match
+4. Run the synthetic tests, then try one sanitised real-world document. Log
+   any failure in `research/failures.md` with a regression test that pins it.
+5. Edit `references/house-style.md` and the wording in `SKILL.md` to match
    your committee's naming, register and section order. These are prose,
    not code, and are the parts most likely to need your own judgement.
-5. Rename the plugin in `plugin.json` and `.claude-plugin/marketplace.json`
+6. Rename the plugin in `plugin.json` and `.claude-plugin/marketplace.json`
    if you publish your own copy. `tests/test_structure.py` checks the names
    still match.
 
@@ -361,8 +372,10 @@ repository's rule against committing Word and PDF files stays intact.
 This is an **independent, unofficial** community project. It is not
 affiliated with, endorsed by, sponsored by, or approved by any CCC,
 grassroots organisation, government agency, or AI model provider.
-Official minutes require authorised review and approval.
-
+Official minutes require authorised review and approval. The skill is not
+an automated approval authority and does not replace secretariat review.
+Passing tests do not prove correctness on unseen formats, scans or meeting
+scenarios.
 
 Do not commit real minutes, attendance sheets, signatures, personal data or
 other meeting records to this public repository. Use an ignored
