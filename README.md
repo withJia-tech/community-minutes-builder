@@ -151,6 +151,21 @@ If the document structure differs, the system fails closed for human review.
 Synthetic test examples of evidence and source-map JSON live in
 [`tests/fixtures/`](tests/fixtures/); do **not** put real roster data there.
 
+## Two versions: Claude and any assistant
+
+Volunteers use different assistants, so the same rules ship two ways:
+
+| Version | For | Checks |
+|---|---|---|
+| The skill and plugin (`skills/`, `plugins/`) | Claude | The assistant runs them itself; the plugin also blocks an unresolved final |
+| The generic pack (`portable/`) | Grok, ChatGPT, Qwen or any chat assistant | The assistant hands over draft text plus `attendance.json` and `row-sources.json`; the committee's checker runs the same scripts |
+
+There is one source. `portable/minutes-instructions.md` is generated from
+the skill by `python tools/build_portable.py`, which drops the parts marked
+`<!-- claude-only -->` in `SKILL.md`, and CI fails if it is out of date. Both
+carry the same version number. A browser checker, so volunteers without
+Python can check their own files, is planned.
+
 ## Quick start
 
 Secretaries setting up in their own AI account: start with the
@@ -371,12 +386,18 @@ community-minutes-builder/
 │       └── skills/ccc-minutes-builder -> ../../../skills/ccc-minutes-builder
 ├── docs/
 │   └── volunteer-guide.md        # setup and standard request for secretaries
+├── portable/
+│   ├── README.md                 # using the generic version
+│   └── minutes-instructions.md   # GENERATED for any chat assistant
+├── tools/
+│   └── build_portable.py         # builds portable/ from the skill
 ├── research/
 │   └── failures.md               # observed failures, fixes and their tests
 └── tests/
     ├── fixtures/                 # synthetic JSON, transcripts + build.py
     ├── test_gates.py
     ├── test_hook.py
+    ├── test_portable.py
     ├── test_release_gates.py
     ├── test_structure.py
     └── test_transcripts.py

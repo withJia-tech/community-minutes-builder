@@ -15,12 +15,15 @@ Pick the row that matches your account.
 |---|---|---|
 | **Claude Code** | `/plugin marketplace add withJia-tech/community-minutes-builder` then `/plugin install ccc-minutes-builder@community-minutes-builder` | The skill, plus a hook that blocks a `final*.docx` that still has `[TBC]` in it |
 | **Claude (app or web) with skills** | Download the repository, zip the `skills/ccc-minutes-builder` folder, and upload the ZIP where your Claude settings manage skills | The skill, without the hook |
-| **Another AI assistant** | If it can load a skill folder, load `skills/ccc-minutes-builder`. If not, paste `SKILL.md` and `references/house-style.md` at the start of the chat as instructions | The writing rules only. Run the checks yourself (below) |
+| **Grok, ChatGPT, Qwen or another assistant** | Attach `portable/minutes-instructions.md` at the start of each chat. Follow `portable/README.md` | The same rules, generated from the Claude skill. The assistant hands back draft text and two JSON files for the checker |
 
-Then ask the AI to run `scripts/preflight.py`. If it says `FAIL`, the checks
-cannot run in that workspace: you can still draft, but do not call anything a
-checked final. Run the checks on a computer with Python instead (see "Run the
-checks directly" in the README), or hand them to a secretary who can.
+Claude users: ask the AI to run `scripts/preflight.py`. If it says `FAIL`, the
+checks cannot run in that workspace: you can still draft, but do not call
+anything a checked final.
+
+Everyone else: the committee's checker (one volunteer with Python, until the
+browser checker is ready) runs the checks on your Word file and the two JSON
+files. See "Run the checks directly" in the README.
 
 ## 2. Use the shared committee profile
 
@@ -93,7 +96,8 @@ Before each meeting, check you have the latest release.
 - **Claude Code:** run `/plugin marketplace update`, then update the plugin
   if a new version is offered.
 - **ZIP upload:** download the latest release and upload the new ZIP.
-- **Pasted instructions:** paste the current `SKILL.md` and house style again.
+- **Other assistants:** download the latest `portable/minutes-instructions.md`
+  and check the version line at its top matches the Claude plugin's.
 
 If two secretaries get different results from the same records, compare
 versions first.
