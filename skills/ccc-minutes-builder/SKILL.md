@@ -25,6 +25,7 @@ Never label an output final or signature-ready while any blocking item remains.
 Do not add background knowledge, plausible connective detail, inferred views or
 events that are absent from the supplied records.
 
+<!-- claude-only -->
 ## Runtime requirements
 
 Use a filesystem, Python with `lxml` and Pillow, Poppler tools such as
@@ -54,6 +55,7 @@ in one pass.
 Read `references/house-style.md` before writing any prose,
 `references/docx-mechanics.md` before touching the .docx, and
 `references/transcripts.md` when a meeting transcript is supplied.
+<!-- /claude-only -->
 
 ## Step 0 — Preflight the request and inputs
 
@@ -209,6 +211,7 @@ python scripts/lint_minutes.py final.docx --profile committee-profile.json --fin
 Nothing bracketed reaches the Chairman for signature. Flags belong in the
 chat and in the reconciliation list, never in the document that gets signed.
 
+<!-- claude-only -->
 When this skill is installed as a Claude Code plugin, a hook enforces this
 step: after each shell command, `scripts/check_final_docx.py` checks `final*.docx` immediately inside the working folder, or the
 explicit `CCC_MINUTES_OUTPUT_DIR`, and blocks on structural or marker
@@ -218,6 +221,7 @@ strip a marker just to get past it.
 
 Before releasing a final, install runtime dependencies and run
 `python scripts/preflight.py`. The plugin does not install dependencies.
+<!-- /claude-only -->
 
 Run the final linter against the whole DOCX package, including the attendance
 table, body, headers and footers. When a reusable committee profile is
