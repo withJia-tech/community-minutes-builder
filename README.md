@@ -248,6 +248,16 @@ marketplaces, so users also run `/plugin marketplace update` to see a new
 release. If you would rather every commit reach users, delete `version`
 from `plugin.json` and Claude Code will use the commit instead.
 
+**0.3.0** hardens the gates (#4). Behaviour changes for existing users:
+
+- the row audit fails any row without a confirmed source in `--source-map`;
+  a deck keyword match is shown as a suggestion only;
+- the linter and row audit refuse documents without the attendance and
+  numbered-minutes tables, and documents with duplicate or unnumbered rows;
+- the final-document hook fails closed (exit 2) on bad input, damaged finals
+  or missing packages, and checks only the working folder or
+  `CCC_MINUTES_OUTPUT_DIR`, not subfolders.
+
 **0.2.0** removes the built-in list of agency tags (`NPC`, `LTA`, `HDB`,
 `NEA`, `CCKTC`, `FSC`) from the linter. If you relied on it, add
 `"action_tags": [...]` to your profile.

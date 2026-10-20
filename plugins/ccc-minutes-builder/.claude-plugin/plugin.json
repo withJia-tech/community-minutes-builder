@@ -1,6 +1,6 @@
 {
   "name": "ccc-minutes-builder",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Build or audit signature-ready CCC and grassroots committee minutes in Word, with attendance, source and placeholder gates.",
   "author": {
     "name": "withJia-tech"
