@@ -20,6 +20,8 @@ release commit. Record a URL or command output for each check.
 - [ ] Review README, affiliated organisation disclaimer, third-party notices,
       CONTRIBUTING.md, and security guidance.
 - [ ] Get a human review of the release commit and run all release tests again.
+- [ ] Rebuild the generic version with `python tools/build_portable.py`
+      after any change to the skill or its version; CI fails until you do.
 - [ ] Tag `v<version>` on that **verified** commit, where `<version>` is the
       version in `plugins/ccc-minutes-builder/.claude-plugin/plugin.json`
       (currently 0.3.0), and publish release notes.

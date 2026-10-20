@@ -91,8 +91,10 @@ meeting nuance can be resolved automatically.
 - previous one or two months' approved minutes (`.docx`);
 - current attendance or signature sheet (`.pdf` or scan);
 - current meeting slide deck (`.pdf`);
-- annexes and supporting records; and
-- the secretary's meeting notes.
+- annexes and supporting records;
+- the secretary's meeting notes; and
+- optionally, a meeting transcript with the secretary's time-stamped
+  markers (see [Transcripts and recordings](#transcripts-and-recordings)).
 
 The skill can work with a partial set. It identifies which checks or sections
 cannot be completed from the available evidence.
@@ -149,7 +151,26 @@ If the document structure differs, the system fails closed for human review.
 Synthetic test examples of evidence and source-map JSON live in
 [`tests/fixtures/`](tests/fixtures/); do **not** put real roster data there.
 
+## Two versions: Claude and any assistant
+
+Volunteers use different assistants, so the same rules ship two ways:
+
+| Version | For | Checks |
+|---|---|---|
+| The skill and plugin (`skills/`, `plugins/`) | Claude | The assistant runs them itself; the plugin also blocks an unresolved final |
+| The generic pack (`portable/`) | Grok, ChatGPT, Qwen or any chat assistant | The assistant hands over draft text plus `attendance.json` and `row-sources.json`; the committee's checker runs the same scripts |
+
+There is one source. `portable/minutes-instructions.md` is generated from
+the skill by `python tools/build_portable.py`, which drops the parts marked
+`<!-- claude-only -->` in `SKILL.md`, and CI fails if it is out of date. Both
+carry the same version number. A browser checker, so volunteers without
+Python can check their own files, is planned.
+
 ## Quick start
+
+Secretaries setting up in their own AI account: start with the
+[volunteer guide](docs/volunteer-guide.md). It covers each setup, the shared
+committee profile and the standard request text.
 
 1. Install the plugin, or upload the skill, in a supported AI workspace.
 2. Invoke it within that user instance.
@@ -183,11 +204,33 @@ python scripts/row_audit.py draft.docx \
   --deck slides.pdf \
   --previous previous.docx \
   --source-map row-sources.json
+
+# Optional: cut a transcript down to the secretary's marked moments
+python scripts/transcript_windows.py --transcript meeting.vtt \
+  --markers markers.txt --recording-start 19:30
 ```
 
 Each final check returns a non-zero exit status when a blocking condition
 remains. This makes the checks usable in a repeatable workflow rather than only
 as instructions to the model.
+
+## Transcripts and recordings
+
+A meeting bot or room recorder can produce a transcript, but a transcript
+records what was said, not what was decided, and it misses whatever no
+microphone heard. In a large hall the secretary still decides what matters.
+
+So the skill uses a transcript only through the secretary's time-stamped
+markers (`19:52 Agency update: hit-rate question owed an answer`).
+`transcript_windows.py` prints the transcript around each marker, shows
+speaker labels as unconfirmed, and lists unmarked speech as suggestions for
+the drafter to decide. It fails closed on an empty or mistyped markers file,
+a marker outside the recording, or a window with no usable speech. A meeting
+tool's AI recap is not treated as a source.
+
+Announce any recording and get agreement first. Keep audio, transcripts and
+markers in an ignored `workspace/` folder; `.gitignore` blocks common
+recording and transcript files. Rules: `skills/ccc-minutes-builder/references/transcripts.md`.
 
 ## Final-document hook: a scoped, fail-closed safeguard
 
@@ -335,7 +378,8 @@ community-minutes-builder/
 │       │   └── committee-profile.example.json
 │       ├── references/
 │       │   ├── house-style.md
-│       │   └── docx-mechanics.md
+│       │   ├── docx-mechanics.md
+│       │   └── transcripts.md      # evidence rules for transcripts
 │       └── scripts/
 │           ├── docx_layout.py      # shared fail-closed document shape
 │           ├── preflight.py        # runtime dependency check
@@ -343,19 +387,30 @@ community-minutes-builder/
 │           ├── check_final_docx.py   # the Phase 4 hook
 │           ├── lint_minutes.py
 │           ├── row_audit.py
-│           └── swap_slide_images.py
+│           ├── swap_slide_images.py
+│           └── transcript_windows.py # marker windows from a transcript
 ├── plugins/
 │   └── ccc-minutes-builder/
 │       ├── .claude-plugin/plugin.json
 │       ├── hooks/hooks.json
 │       └── skills/ccc-minutes-builder -> ../../../skills/ccc-minutes-builder
+├── docs/
+│   └── volunteer-guide.md        # setup and standard request for secretaries
+├── portable/
+│   ├── README.md                 # using the generic version
+│   └── minutes-instructions.md   # GENERATED for any chat assistant
+├── tools/
+│   └── build_portable.py         # builds portable/ from the skill
 ├── research/
 │   └── failures.md               # observed failures, fixes and their tests
 └── tests/
-    ├── fixtures/                 # synthetic JSON + build.py (no binaries)
+    ├── fixtures/                 # synthetic JSON, transcripts + build.py
     ├── test_gates.py
     ├── test_hook.py
-    └── test_structure.py
+    ├── test_portable.py
+    ├── test_release_gates.py
+    ├── test_structure.py
+    └── test_transcripts.py
 ```
 
 The skill lives in `skills/ccc-minutes-builder/`. Paths inside `SKILL.md`,

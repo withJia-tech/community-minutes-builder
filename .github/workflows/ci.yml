@@ -39,6 +39,15 @@ jobs:
           git check-ignore -q unpacked/word/media/signature.png
           git check-ignore -q workspace/attendance-real.json
           git check-ignore -q preview_rId5.png
+          git check-ignore -q meeting-recording.m4a
+          git check-ignore -q july-meeting.vtt
+          git check-ignore -q notes/transcript-july.txt
+          git check-ignore -q notes/markers-july.txt
+          for fixture in tests/fixtures/transcript.vtt tests/fixtures/transcript.txt tests/fixtures/markers.txt; do
+            if git check-ignore -q "$fixture"; then
+              echo "synthetic fixture is wrongly ignored: $fixture"; exit 1
+            fi
+          done
 
   plugin-validation:
     runs-on: ubuntu-latest
